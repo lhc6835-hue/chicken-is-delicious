@@ -462,6 +462,9 @@ export class Game {
     for (const sp of this.springs) {
       if (p.x + 8 > sp.x && p.x - 8 < sp.x + sp.w && p.y >= sp.y - 10 && p.y <= sp.y + 2 && p.vy >= 0) {
         p.ground = null; p.vy = -720; p.holdT = HOLD_T; p.glideLeft = this.glideMax; sp.t = 0.3;
+        // a jump pad launches the whole train: the chicks ride the chicken's path until it lands
+        this.carryPending = true;
+        for (const c of this.chicks) c.safeUntil = Infinity;
         p.sx = 0.7; p.sy = 1.4;
         this.run.springs++;
         sfx("spring", { vol: 0.8 });
