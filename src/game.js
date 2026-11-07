@@ -280,8 +280,8 @@ export class Game {
   addObstacle(x, kind) {
     const P = getProps();
     const img = kind === "fence" ? P.fence : kind === "crate" ? P.crate : kind === "hay" ? P.hay : P.thorns;
-    const k = kind === "thorns" ? 1 : 1;
-    const o = { x, y: GROUND, w: img.width * k, h: img.height * k, kind, img };
+    const k = 2; // drawn in 2x cells, like the chicken
+    const o = { x, y: GROUND, w: img.width * k, h: img.height * k, kind, img, k };
     if (kind === "crate" && Math.random() < 0.35 && this.dist > 600) { o.h *= 2; o.stack = true; }
     this.obs.push(o);
   }
@@ -1170,11 +1170,17 @@ export class Game {
         ctx.restore();
         continue;
       }
-      const w = o.img.width, h = o.img.height;
+      const k = o.k || 1, w = o.img.width * k, h = o.img.height * k;
+      if (!o.dead) {
+        // a shadow on the ground so it reads as standing there
+        ctx.fillStyle = "rgba(20,10,20,0.35)";
+        ctx.fillRect(x - 2, Math.round(o.y) - 1, w + 4, 3);
+        ctx.fillRect(x, Math.round(o.y) + 2, w, 1);
+      }
       ctx.translate(x + w / 2, Math.round(o.y) - o.h / 2);
       if (o.dead) ctx.rotate(o.spin);
-      if (o.stack) { ctx.drawImage(o.img, -w / 2, -h); ctx.drawImage(o.img, -w / 2, 0); }
-      else ctx.drawImage(o.img, -w / 2, -h / 2);
+      if (o.stack) { ctx.drawImage(o.img, -w / 2, -h, w, h); ctx.drawImage(o.img, -w / 2, 0, w, h); }
+      else ctx.drawImage(o.img, -w / 2, -h / 2, w, h);
       ctx.restore();
     }
   }
