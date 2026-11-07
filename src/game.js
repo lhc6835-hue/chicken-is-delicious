@@ -150,7 +150,7 @@ export class Game {
     let x = this.genX;
     const roll = Math.random();
     const kinds = ["flat", "pit", "obstacle", "platforms", "spring", "crows", "pitObstacle", "steps"];
-    const weights = [1.2, 1.4, 1.3 + d, 0.8 + d, 0.5, 0.3 + d * 0.9, d * 1.2, 0.6];
+    const weights = [1.2, 1.4, 1.3 + d, 0.8 + d, 0.5, 0.75 + d * 0.6, d * 1.2, 0.6];
     let t = 0, sum = weights.reduce((a, b) => a + b, 0), r = roll * sum, kind = kinds[0];
     for (let i = 0; i < kinds.length; i++) { t += weights[i]; if (r <= t) { kind = kinds[i]; break; } }
 
@@ -468,7 +468,7 @@ export class Game {
 
   land(s, vy) {
     const p = this.p;
-    p.y = s.y; p.vy = 0; p.ground = s; p.gliding = false;
+    p.y = s.y; p.vy = 0; p.ground = s; p.gliding = false; p.stompChain = 0;
     p.glideLeft = this.glideMax;
     if (vy > 380) {
       p.sx = 1.35; p.sy = 0.7;
@@ -504,7 +504,7 @@ export class Game {
       const ox = o.x, oy = o.kind === "crow" ? o.y - o.h / 2 : o.y - o.h;
       const pad = o.kind === "thorns" ? 3 : 2;
       if (bx + bw < ox + pad || bx > ox + o.w - pad || by + bh < oy + pad || by > oy + o.h) continue;
-      if (o.kind === "crow" && p.vy > 0 && p.y < o.y + 2) { this.stompCrow(o); continue; }
+      if (o.kind === "crow" && p.vy > -60 && p.y <= o.y + 7) { this.stompCrow(o); continue; }
       if (p.speed > 0) { this.smash(o); continue; }
       if (p.invuln > 0) continue;
       if (p.shield) { this.breakShield(); this.smash(o, true); continue; }
@@ -535,16 +535,27 @@ export class Game {
 
   stompCrow(o) {
     const p = this.p;
-    o.dead = true; o.vy = -100; o.spin = 0;
-    p.vy = -520; p.holdT = HOLD_T; p.glideLeft = this.glideMax;
+    // squashed flat, then it drops out of the sky spinning
+    o.dead = true; o.vy = 40; o.spin = 0; o.squash = 1;
+    // holding the button bounces higher, so chains of crows are possible
+    p.vy = p.holding ? -580 : -460; p.holdT = HOLD_T; p.glideLeft = this.glideMax; p.ground = null;
+    p.sx = 1.35; p.sy = 0.7;
+    p.stompChain = (p.stompChain || 0) + 1;
+    const chain = p.stompChain, pts = 100 * Math.min(chain, 8);
     this.run.crows++;
-    sfx("hit", { vol: 0.8, rate: 1.3 }); sfx("jump", { vol: 0.4, rate: 1.4 });
-    this.fx.add("spark", o.x + o.w / 2, o.y, { rot: Math.PI / 2 });
-    this.feathers(o.x + o.w / 2, o.y + 10, 8, ["#2a2438", "#4a4458", "#0a0810"]);
-    this.hitstop = 0.05; this.addShake(3);
-    this.score += 100;
-    this.worldText(o.x, o.y - 10, "+100 꾹!", "#fff07a");
-    for (let i = 0; i < 3; i++) this.coins.push({ x: o.x + 30 + i * 16, y: o.y - 20, kind: "coin", ph: i, mag: true });
+    sfx("hit", { vol: 0.9, rate: 1.2 + Math.min(chain, 6) * 0.08, vary: 0 });
+    sfx("land", { vol: 0.6, rate: 1.5 });
+    sfx("jump", { vol: 0.4, rate: 1.3 + Math.min(chain, 6) * 0.1, vary: 0 });
+    const cx = o.x + o.w / 2;
+    this.fx.add("spark", cx, o.y - 2, { rot: Math.PI / 2 });
+    if (chain >= 2) this.fx.add("pow", cx, o.y - 16, { alpha: 0.9 });
+    this.feathers(cx, o.y + 6, 12, ["#2a2438", "#4a4458", "#0a0810", "#6a6080"]);
+    this.sparkle(cx, o.y, "#ffffff", 8, 150);
+    this.hitstop = 0.06; this.addShake(3 + Math.min(chain, 4)); duck(0.55, 0.005, 0.07, 0.3);
+    this.score += pts;
+    this.worldText(o.x, o.y - 12, chain >= 2 ? `+${pts} ${chain}연속 꾹!` : `+${pts} 꾹!`, chain >= 2 ? "#ff86e6" : "#fff07a");
+    if (chain >= 2) sfx("combo", { vol: 0.5, rate: 0.9 + chain * 0.08, vary: 0 });
+    for (let i = 0; i < 2 + Math.min(chain, 4); i++) this.coins.push({ x: o.x + 30 + i * 16, y: o.y - 20, kind: "coin", ph: i, mag: true });
   }
 
   smash(o, quiet) {
@@ -686,7 +697,7 @@ export class Game {
       if (o.dead) {
         o.spin = (o.spin || 0) + dt * 12;
         if (o.flyVx !== undefined) { o.x += o.flyVx * dt; o.y += o.flyVy * dt; o.flyVy += 1200 * dt; }
-        else { o.vy = (o.vy || 0) + 900 * dt; o.y += o.vy * dt; }
+        else { o.vy = (o.vy || 0) + 900 * dt; o.y += o.vy * dt; if (o.squash) o.squash = Math.max(0, o.squash - dt * 4); }
       }
     }
 
@@ -983,7 +994,7 @@ export class Game {
       if (o.kind === "crow") {
         const img = P.crow[Math.floor(this.time * 8 + o.ph) % 2];
         ctx.translate(x + o.w / 2, Math.round(o.y));
-        if (o.dead) ctx.rotate(o.spin);
+        if (o.dead) { ctx.rotate(o.spin * 0.6); if (o.squash) ctx.scale(1 + o.squash * 0.5, 1 - o.squash * 0.6); }
         ctx.drawImage(img, -img.width, -img.height, img.width * 2, img.height * 2);
         ctx.restore();
         continue;
