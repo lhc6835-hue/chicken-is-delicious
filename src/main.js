@@ -68,6 +68,9 @@ window.addEventListener("keydown", (e) => {
     if (screen === "title") { startRun(); return; }
     if (screen === "over" && e.code === "Space") { startRun(); return; }
     if (screen === "run") game.press();
+  } else if (["KeyX", "KeyJ", "KeyK", "Enter", "NumpadEnter"].includes(e.code)) {
+    e.preventDefault();
+    if (!e.repeat && screen === "run") game.attack();
   } else if (e.code === "Escape" || e.code === "KeyP") {
     if (screen === "run") pause(); else if (screen === "pause") resume();
   }
@@ -228,6 +231,8 @@ function showHelp() {
         <li><b>🥚 황금알</b> : 코인 폭탄! &nbsp; <b>스프링</b> : 엄청 높이 튕겨요.</li>
         <li><b>까마귀</b>는 위에서 밟으면 보너스! &nbsp; <b>회색 돌 발판</b>은 금방 무너져요.</li>
         <li>코인을 끊기지 않게 먹으면 <b>콤보</b>가 쌓이고 소리가 점점 올라가요.</li>
+        <li><b>X / J / Enter · 🥚 버튼</b> : 달걀 던지기. 적을 맞히면 해치워요!</li>
+        <li><b>적</b> : 여우·냄비·매는 위에서 밟아도 돼요. <b>포크</b>는 뾰족해서 달걀로만! 냄비는 두 대.</li>
         <li>P / ESC : 일시정지</li>
       </ul>
       ${btn("돌아가기", "", 'data-act="back"')}
@@ -240,7 +245,7 @@ function showStats() {
   const rows = [
     ["최고 점수", save.best.toLocaleString()], ["최장 거리", `${save.bestDist}m`], ["플레이 횟수", st.runs], ["총 달린 거리", `${Math.floor(st.distTotal).toLocaleString()}m`],
     ["모은 코인", st.coinsTotal.toLocaleString()], ["점프", st.jumps], ["활공 시간", `${Math.floor(st.glide)}초`], ["부스터 사용", st.boosters],
-    ["배속 사용", st.speeds], ["부순 장애물", st.smash], ["밟은 까마귀", st.crows], ["깬 황금알", st.eggs], ["완료한 미션", st.missionsDone],
+    ["배속 사용", st.speeds], ["부순 장애물", st.smash], ["밟은 까마귀", st.crows], ["해치운 적", st.kills || 0], ["달걀 명중", st.eggHits || 0], ["깬 황금알", st.eggs], ["완료한 미션", st.missionsDone],
   ];
   setScreen("stats", `
     <div class="panel wide">
@@ -491,9 +496,16 @@ function beginRun() {
   resetMix();
   closeModal();
   game.start();
-  setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
+  if (save.stats.runs < 5) setTimeout(() => game.popText("X / J 키 · 🥚버튼 : 달걀 던지기!", "#fff4dc"), 900);
+  showRunHud();
   playBgm(["run1", "run2", "run3"][save.stats.runs % 3]);
   duckBgm(1);
+}
+
+function showRunHud() {
+  setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}<button class="atkbtn" aria-label="달걀 던지기"><i></i></button>`, { pause: () => pause() });
+  const a = $(".atkbtn", ui);
+  a.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); initAudio(); game.attack(); a.classList.remove("hit"); void a.offsetWidth; a.classList.add("hit"); });
 }
 
 function pause() {
@@ -515,7 +527,7 @@ function pause() {
 function resume() {
   sfx("select");
   muffle(20000, 0.3);
-  setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
+  showRunHud();
   duckBgm(1);
   game.state = "run";
   last = performance.now();
@@ -586,7 +598,7 @@ function showOver() {
       for (const k of Object.keys(r.run)) st[k] -= r.run[k];
       save.coins -= r.coins + reviveCost;
       persist();
-      setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
+      showRunHud();
       playBgm(["run1", "run2", "run3"][save.stats.runs % 3]);
       game.revive();
     },

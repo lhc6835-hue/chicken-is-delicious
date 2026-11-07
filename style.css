@@ -141,3 +141,10 @@ canvas.eggcv { width: 160px; height: 110px; image-rendering: pixelated; }
 @keyframes titlepop { from { transform: scale(2.2); opacity: 0; } }
 .over-sub { font-size: 8px; opacity: 0.85; margin-bottom: 2px; }
 #loading { font-family: Silkscreen, monospace; letter-spacing: 2px; color: var(--gold); }
+
+.screen-run .atkbtn { pointer-events: auto; position: absolute; right: 10px; bottom: 10px; width: 40px; height: 40px; border-radius: 50%; padding: 0; opacity: 0.85;
+  background: radial-gradient(circle at 40% 35%, #fff4dc 0 55%, #e2d4b2 56%); }
+.screen-run .atkbtn i { position: absolute; left: 13px; top: 9px; width: 14px; height: 18px; background: #fff; border: 2px solid var(--ink); border-radius: 50% 50% 45% 45% / 60% 60% 40% 40%; }
+.screen-run .atkbtn.hit { animation: atk 0.18s; }
+@keyframes atk { 40% { transform: scale(0.86); } }
+@media (hover: hover) and (pointer: fine) { .screen-run .atkbtn { opacity: 0.5; } }
