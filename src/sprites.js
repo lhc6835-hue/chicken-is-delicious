@@ -260,142 +260,123 @@ function accessory(g, s, X, Y, pal, out) {
 }
 
 // ---------- heroes ----------
-// Chunky chibi templates facing left. h hair, H hair light, s skin, S skin shade, e eye, w eye shine,
-// c cloth, C cloth shade, t trim (belt), p trousers, b boots.
-const HERO = [
-  "....oooooo....",
-  "...ohhhhhho...",
-  "..ohHHhhhhho..",
-  "..ohhhhhhhhho.",
-  "..osssshhhhho.",
-  "..oseseshhhho.",
-  "..osssssShhho.",
-  "...osssSShho..",
-  "....oooooo....",
-  "...occcccco...",
-  "..osccccccCo..",
-  "..osttttttCo..",
-  "...occccccCo..",
-  "...oppoooppo..",
-  "...oppo.oppo..",
-  "...obbo.obbo..",
-  "...ooo..ooo...",
+// Simple chibi people facing left: a solid black outline, a face that is only two black eyes framed by
+// hair, and a plain block of a body (tunic with a belt, or a long robe with a fold line), no arms. The
+// weapon is part of the sprite: frame 0 holds it at rest, 1 is a step, 2 is the strike pose.
+const HEAD = [
+  "...oooooo...",
+  "..ohhhhhhho.",
+  ".ohHhhhhhhho",
+  ".ohhhhhhhhho",
+  ".ossssshhhho",
+  ".oseseshhhho",
+  ".oseseshhhho",
+  ".osssssShhho",
+  "..ooooooooo.",
 ];
-const HERO_STEP = ["...oppoooppo..", "..oppo..oppo..", "..obbo..obbo..", "..ooo...ooo..."];
-const BOSS = [
-  ".....oooooooo.....",
-  "....ohhhhhhhho....",
-  "...ohHHHhhhhhho...",
-  "..ohhhhhhhhhhhho..",
-  "..ohhhhhhhhhhhho..",
-  "..osssssshhhhhho..",
-  "..osweswesshhhho..",
-  "..oseeseesshhhho..",
-  "..osssssssShhhho..",
-  "...osssssSShhho...",
-  "....oooooooooo....",
-  "...occcccccccco...",
-  "..osccccccccCCo...",
-  "..osccccccccCCo...",
-  "..osttttttttCCo...",
-  "...occccccccCCo...",
-  "...occccccccCCo...",
-  "...oooooooooooo...",
-  "....opppo.opppo...",
-  "....opppo.opppo...",
-  "....obbbo.obbbo...",
-  "....ooooo.ooooo...",
+const TUNIC = ["..occcccCCo.", ".occccccCCCo", ".ottttttttto", ".occccccCCCo", "..oooooooo.."];
+const TUNIC_FEET = [["..obo..obo..", "..ooo..ooo.."], [".obo....obo.", ".ooo....ooo."]];
+const ROBE = ["..occcFcCCo.", ".occccFcCCCo", ".occccFcCCCo", ".occccFcCCCo", ".occccFcCCCo", ".occccFcCCCo"];
+const ROBE_HEM = [[".oooooooooo."], ["..oooooooooo"]];
+const BIG = [
+  "....oooooooo....",
+  "...ohhhhhhhho...",
+  "..ohHHhhhhhhhho.",
+  ".ohhhhhhhhhhhhho",
+  ".ohhhhhhhhhhhhho",
+  ".osssssssshhhhho",
+  ".ossesssesshhhho",
+  ".ossesssesshhhho",
+  ".ossssssssShhhho",
+  "..osssssssShhho.",
+  "...oooooooooo...",
+  "..occccccccCCoko",
+  ".occccccccCCCoko",
+  ".occccccccCCCoko",
+  ".ottttttttttCoko",
+  ".occccccccCCCoko",
+  ".occccccccCCCoko",
+  ".occccccccCCCoko",
+  "..ooooooooooooo.",
 ];
-const BOSS_STEP = ["...opppo..opppo..", "...opppo..opppo..", "...obbbo..obbbo..", "...ooooo..ooooo.."].map((r) => r.padEnd(18, "."));
+const BIG_FEET = [["...obbo...obbo..", "...oooo...oooo.."], ["..obbo.....obbo.", "..oooo.....oooo."]];
+
+// weapons as pixel rows, at [x, y] from the template's top-left; [rest, strike]
+const W_PAL = { m: "#a8b0c0", M: "#eef2fa", g: "#ffd84a", w: "#8a5a3a", W: "#b8844a", s: "#e8e0d0", A: "#c8a070" };
+const WEAPONS = {
+  sword: [[-2, 4, [".M.", ".M.", "mM.", "mM.", "ggg", ".w."]], [-9, 9, ["......g..", "MMMMMMMgw", "......g.."]]],
+  dagger: [[-1, 8, [".M", "mM", "g."]], [-6, 10, ["MMMMgw"]]],
+  bow: [[-3, 6, [".W.", "W.s", "W.s", "W.s", "W.s", ".W."]], [-6, 6, ["..W...", ".W.s..", "AAAAAM", ".W.s..", "..W..."]]],
+  mace: [[-3, 5, [".mm.", "mMMm", ".mm.", "..w.", "..w.", "..w."]], [-8, 8, [".mm.....", "mMMmwwww", ".mm....."]]],
+  staff: [[-2, -2, [".x.", "xXx", ".x.", ".w.", ".w.", ".w.", ".w.", ".w.", ".w.", ".w.", ".w.", ".w.", ".w.", ".w."]], [-8, 1, ["xx.......", "xXx......", ".xw......", "...w.....", "....w....", ".....w...", "......w..", ".......w.", "........w"]]],
+  greatsword: [[-3, -1, [".M.", "mMM", "mMM", "mMM", "mMM", "mMM", "mMM", "mMM", "mMM", "ggggg", ".ww.", ".ww."].map((r) => r.padEnd(5, "."))], [-14, 11, ["...........g...", "MMMMMMMMMMMgww.", "mmmmmmmmmmmg...", "...........g..."]]],
+  fork: [[-4, -3, ["g.g.g", "g.g.g", "g.g.g", "ggggg", "..g..", "..w..", "..w..", "..w..", "..w..", "..w..", "..w..", "..w..", "..w..", "..w..", "..w.."]], [-14, 9, ["gggg.........", "....g........", "ggggggwwwwwww", "....g........", "gggg........."]]],
+};
 
 export function hero(id, look, boss = false, frame = 0) {
   const key = `h:${id}:${frame}`;
   if (cache.has(key)) return cache.get(key);
-  let hair = look.hair, hairL = mix(look.hair, "#ffffff", 0.35);
-  if (look.hat === "hood") { hair = look.cloth; hairL = mix(look.cloth, "#ffffff", 0.3); }
-  if (look.hat === "helm" || look.hat === "crownhelm") { hair = "#b8c0d0"; hairL = "#ffffff"; }
-  const out = "#2a1418";
+  const L = look, ink = "#0e0a12";
+  let hair = L.hair, hairL = mix(L.hair, "#ffffff", 0.35);
+  if (L.hat === "hood") { hair = L.hood ?? L.cloth; hairL = mix(hair, "#ffffff", 0.35); }
+  if (L.hat === "helm" || L.hat === "crownhelm") { hair = "#b8c0d0"; hairL = "#ffffff"; }
   const pal = {
-    o: out, h: hair, H: hairL, s: look.skin, S: mix(look.skin, "#b05a4a", 0.35), e: "#1a1020", w: "#ffffff",
-    c: look.cloth, C: mix(look.cloth, "#1a1020", 0.3), t: look.trim, p: "#4a4060", b: "#3a2a2a",
+    o: ink, h: hair, H: hairL, s: L.skin, S: mix(L.skin, "#c06a5a", 0.3), e: ink,
+    c: L.cloth, C: mix(L.cloth, "#1a1020", 0.28), F: mix(L.cloth, "#ffffff", 0.3), t: L.trim, b: "#2a2030",
+    k: L.cape ?? mix(L.cloth, "#1a1020", 0.45),
   };
-  let rows = (boss ? BOSS : HERO).slice();
-  if (frame === 1) {
-    const step = boss ? BOSS_STEP : HERO_STEP;
-    rows = rows.slice(0, rows.length - step.length).concat(step);
-  }
+  const step = frame === 1 ? 1 : 0;
+  let rows;
+  if (boss) rows = BIG.concat(BIG_FEET[step]);
+  else if (L.body === "robe") rows = HEAD.concat(ROBE, ROBE_HEM[step]);
+  else rows = HEAD.concat(TUNIC, TUNIC_FEET[step]);
   const tw = rows[0].length, th = rows.length;
-  const g = new Grid(tw + PADX * 2, th + PADY + 1);
-  const X = PADX, Y = PADY;
-  g.rows(X, Y, rows, pal);
-  heroHat(g, look, X, Y, boss, out);
+  const g = new Grid(tw + 16 + PADX, th + PADY + 1);
+  const X = 14, Y = PADY;
+  g.rows(X, Y, rows, pal, 3);
+  heroHat(g, L, X, Y, boss, ink);
+  // the weapon: lifted 3 rows on the big template, then outlined in black like everything else
+  const wp = WEAPONS[L.wpn];
+  if (wp) {
+    const [wx, wy, wr] = wp[frame === 2 ? 1 : 0];
+    g.rows(X + wx, Y + wy + (boss ? 3 : 0), wr, { ...W_PAL, x: L.gem ?? "#c684ff", X: "#ffffff" }, 1);
+    g.outline(ink);
+  }
   const spr = finish(g, X + Math.floor(tw / 2), Y + th);
-  spr.hand = boss ? [3 - Math.floor(tw / 2), 12 - th] : [3 - Math.floor(tw / 2), 10 - th];
+  spr.hand = [-Math.floor(tw / 2) - 2, (boss ? 13 : 10) - th];
   spr.top = -th;
   cache.set(key, spr);
   return spr;
 }
 
 function heroHat(g, L, X, Y, boss, o) {
-  const put = (rows, x, y, P) => g.rows(X + x, Y + y, rows, { o, ...P });
-  const big = boss ? 2 : 0, cl = L.cloth, cd = mix(L.cloth, "#1a1020", 0.35);
+  const put = (rows, x, y, P) => g.rows(X + x, Y + y, rows, { o, ...P }, 3);
+  const cl = L.cloth, cd = mix(L.cloth, "#1a1020", 0.35), wide = boss ? 4 : 0;
   switch (L.hat) {
-    case "wizard": put(["....oo..", "...opo..", "...oppo.", "..oppyo.", "..oppppo", ".opppppo", "oddddddddo"], 2, -6, { p: cl, y: L.trim, d: cd }); break;
-    case "bigwizard": put([".....oo....", "....opo....", "....oppo...", "...opppo...", "...oppypo..", "..oppppppo.", "..opyppppo.", ".oppppppppo", "oddddddddddo".slice(0, 12), "oddddddddddddo".slice(0, 14)], 2, -9, { p: cl, y: L.trim, d: cd }); break;
-    case "bandana": for (let x = 3; x <= (boss ? 15 : 12); x++) g.set(X + x, Y + 3, L.trim); put(["tt", ".tt", "t.."], boss ? 16 : 13, 3, { t: L.trim }); break;
-    case "mitre": put(["..oo..", ".owwo.", ".owbo.", "owbbwo", "owwbwo", "owwwwo"], 4, -5, { w: cl, b: L.trim }); break;
-    case "feathercap": put([".......or", "......oro", "..ooooro.", ".ogggggo.", "oddddddddo"], 2, -4, { g: cl, r: "#e8343a", d: cd }); break;
-    case "crown": put(["o.o.o.o", "oyoyoyo", "oyryyby", "ooooooo"], boss ? 5 : 3, -3, { y: "#ffd84a", r: "#ff4a6a", b: "#5ab0f4" }); break;
-    case "crownhelm": put(["o.o.o.o", "oyoyoyo", "ooooooo"], boss ? 5 : 3, -2, { y: "#ffd84a" }); break;
-    case "helm": for (let x = 3; x <= 11; x++) g.set(X + x, Y + 4, "#8a90a0"); break;
+    case "witch": // a floppy pointed hat, its tip bent back
+      put(["........ooo..", ".......occco.", "......occo.o.", ".....occco...", "....occcco...", "oooooooooooooo", "occccccccccCCo", "oooooooooooooo"], -1, -6, { c: cl, C: cd });
+      break;
+    case "bigwitch":
+      put(["...........ooo...", "..........occco..", ".........occo.oo.", "........occco....", ".......occcyo....", "......occccco....", ".....occcccco....", "ooooooooooooooooo", "occcccccccccccCCo", "ooooooooooooooooo"], -1, -8, { c: cl, C: cd, y: L.gem ?? "#ffd84a" });
+      break;
+    case "bandana":
+      for (let x = 2; x <= (boss ? 14 : 10); x++) g.set(X + x, Y + 3, L.trim, 3);
+      put(["tt.", ".tt", "t.."], boss ? 15 : 11, 3, { t: L.trim });
+      break;
+    case "feathercap":
+      put([".........oo", "........oro", "..ooooooor.", ".occcccccco.", "oCCCCCCCCCCo", "oooooooooooo"].map((r) => r.padEnd(12, ".")), 1, -3, { c: cl, C: cd, r: "#e8343a" });
+      break;
+    case "crown":
+      put(["o.o.o.o", "oyoyoyo", "oyryyby", "ooooooo"], boss ? 4 : 3, -2, { y: "#ffd84a", r: "#ff4a6a", b: "#5ab0f4" });
+      break;
+    case "crownhelm":
+      put(["o.o.o.o", "oyoyoyo", "ooooooo"], boss ? 4 : 3, -1, { y: "#ffd84a" });
+      break;
+    case "helm":
+      put(["ooooooooo"], 2, 4, {});
+      break;
   }
-}
-
-// ---------- weapons (drawn live, so they can swing) ----------
-const WPN = {
-  sword: { len: 7, col: "#dce4f0", hilt: "#ffd84a", grip: 2 },
-  greatsword: { len: 12, col: "#e8eef8", hilt: "#ffd84a", grip: 3, w: 2 },
-  dagger: { len: 4, col: "#dce4f0", hilt: "#8a5a3a", grip: 1 },
-  staff: { len: 11, col: "#8a5a3a", gem: true, grip: 4 },
-  mace: { len: 7, col: "#8a6a4a", ball: "#a8b0c0", grip: 2 },
-  bow: { bow: true },
-  fork: { len: 13, col: "#ffd84a", fork: true, grip: 4, w: 2 },
-};
-/** Draw a weapon held at (x, y) pointing at angle a (0 = right). gem: color for staff tops. */
-export function weapon(ctx, kind, x, y, a, scale = 1, gem = "#c684ff") {
-  const W = WPN[kind];
-  if (!W) return;
-  // collect the pixels, then draw a dark rim round them and the colors on top, like the sprites
-  const pts = new Map();
-  const px = (X, Y, c) => pts.set(Math.round(X) + "," + Math.round(Y), c);
-  const flush = () => {
-    ctx.fillStyle = "#2a1418";
-    for (const k of pts.keys()) { const [a, b] = k.split(",").map(Number); ctx.fillRect(a - 1, b, 3, 1); ctx.fillRect(a, b - 1, 1, 3); }
-    for (const [k, c] of pts) { const [a, b] = k.split(",").map(Number); ctx.fillStyle = c; ctx.fillRect(a, b, 1, 1); }
-  };
-  const ca = Math.cos(a), sa = Math.sin(a);
-  if (W.bow) {
-    // a bow held upright in front, string pulled to the hand
-    const r = 5 * scale;
-    for (let t = -1.2; t <= 1.2; t += 0.12) px(x + Math.cos(t + Math.PI) * -2 * scale + ca * 2 - 2, y + Math.sin(t) * r, "#a0643a");
-    for (let j = -r + 1; j < r; j++) px(x + 1, y + j, "#e8e0d0");
-    flush();
-    return;
-  }
-  const len = W.len * scale, wd = (W.w ?? 1);
-  const back = W.grip * scale;
-  for (let d = -back; d <= len; d += 0.5) {
-    const X = x + ca * d, Y = y + sa * d, c = d < 0 ? (W.hilt ? "#5a3a2a" : W.col) : W.col;
-    px(X, Y, c);
-    if (wd > 1 && d > 0) px(X - sa, Y + ca, mix(W.col, "#000000", 0.25));
-  }
-  if (W.hilt) for (let o = -1.5; o <= 1.5; o += 0.5) px(x - sa * o * scale, y + ca * o * scale, W.hilt);
-  const tx = x + ca * len, ty = y + sa * len;
-  if (W.gem) { for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) if (i * j === 0) px(tx + i, ty + j, gem); px(tx, ty - 1, "#ffffff"); }
-  if (W.ball) { for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) px(tx + i, ty + j, W.ball); px(tx - 1, ty - 1, "#ffffff"); }
-  if (W.fork) for (const o of [-2, 0, 2]) for (let d = 0; d < 3; d++) px(tx + ca * d - sa * o, ty + sa * d + ca * o, "#fff0a0");
-  else if (!W.gem && !W.ball) px(tx, ty, "#ffffff");
-  flush();
+  if (L.beard) put(["..ooooooo..", ".owwwwwwwo.", ".owwwwwwwo.", "..owwwwwo..", "...owwwo...", "....ooo...."], 1, 9, { w: "#f4f4f8" });
 }
 
 // ---------- eggs ----------

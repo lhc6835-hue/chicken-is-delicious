@@ -99,17 +99,17 @@ export const RECIPES = [
 // ---------- enemies ----------
 // look: skin, hair, cloth, trim, hat kind, weapon kind
 export const FOES = {
-  squire: { name: "견습 용사", role: "melee", hp: 50, atk: 8, cd: 1.1, range: 12, spd: 22, look: { skin: "#f4c8a0", hair: "#7a4a2a", cloth: "#3a6ad0", trim: "#ffd84a", hat: "none", wpn: "sword" }, coin: 6 },
-  archer: { name: "궁수", role: "ranged", hp: 36, atk: 9, cd: 1.5, range: 120, spd: 20, look: { skin: "#f0c090", hair: "#d8a040", cloth: "#3a8a4a", trim: "#a06a3a", hat: "hood", wpn: "bow" }, coin: 7, shot: "arrow" },
-  mage: { name: "마법사", role: "ranged", hp: 32, atk: 13, cd: 2.0, range: 115, spd: 18, look: { skin: "#f4d0b0", hair: "#e8e8f0", cloth: "#5a3aa0", trim: "#ffd84a", hat: "wizard", wpn: "staff" }, coin: 9, shot: "arcane" },
-  paladin: { name: "성기사", role: "tank", hp: 120, atk: 8, cd: 1.4, range: 12, spd: 16, look: { skin: "#f0c8a8", hair: "#c89a50", cloth: "#b8c0d0", trim: "#ffd84a", hat: "helm", wpn: "mace" }, coin: 10 },
-  rogue: { name: "도적", role: "melee", hp: 40, atk: 11, cd: 0.7, range: 11, spd: 34, look: { skin: "#e8b890", hair: "#2a2430", cloth: "#4a4058", trim: "#c83a3a", hat: "bandana", wpn: "dagger" }, coin: 8 },
-  cleric: { name: "사제", role: "healer", hp: 40, atk: 5, cd: 1.8, range: 100, spd: 18, look: { skin: "#f4d0b0", hair: "#f0d070", cloth: "#f0ece0", trim: "#5ab0f4", hat: "mitre", wpn: "staff" }, coin: 9, shot: "holy" },
+  squire: { name: "견습 용사", role: "melee", hp: 50, atk: 8, cd: 1.1, range: 12, spd: 22, look: { skin: "#f4c8a0", hair: "#7a4a2a", cloth: "#3a6ad0", trim: "#ffd84a", hat: "none", wpn: "sword", body: "tunic" }, coin: 6 },
+  archer: { name: "궁수", role: "ranged", hp: 36, atk: 9, cd: 1.5, range: 120, spd: 20, look: { skin: "#f0c090", hair: "#d8a040", cloth: "#3a8a4a", trim: "#a06a3a", hat: "hood", wpn: "bow", body: "tunic" }, coin: 7, shot: "arrow" },
+  mage: { name: "마법사", role: "ranged", hp: 32, atk: 13, cd: 2.0, range: 115, spd: 18, look: { skin: "#f4d0b0", hair: "#e8e8f0", cloth: "#4a3a8a", trim: "#ffd84a", hat: "witch", wpn: "staff", body: "robe", gem: "#c684ff" }, coin: 9, shot: "arcane" },
+  paladin: { name: "성기사", role: "tank", hp: 120, atk: 8, cd: 1.4, range: 12, spd: 16, look: { skin: "#f0c8a8", hair: "#c89a50", cloth: "#b8c0d0", trim: "#ffd84a", hat: "helm", wpn: "mace", body: "tunic" }, coin: 10 },
+  rogue: { name: "도적", role: "melee", hp: 40, atk: 11, cd: 0.7, range: 11, spd: 34, look: { skin: "#e8b890", hair: "#2a2430", cloth: "#4a4058", trim: "#c83a3a", hat: "bandana", wpn: "dagger", body: "tunic" }, coin: 8 },
+  cleric: { name: "사제", role: "healer", hp: 40, atk: 5, cd: 1.8, range: 100, spd: 18, look: { skin: "#f4d0b0", hair: "#f0d070", cloth: "#f0ece0", trim: "#5ab0f4", hat: "hood", wpn: "staff", body: "robe", gem: "#5ab0f4", hood: "#a8d0f4" }, coin: 9, shot: "holy" },
   // bosses
-  guildmaster: { name: "용사 길드장 브레이브", boss: true, role: "melee", hp: 520, atk: 18, cd: 1.2, range: 16, spd: 20, look: { skin: "#f4c8a0", hair: "#d84a2a", cloth: "#c8343a", trim: "#ffd84a", hat: "crownhelm", wpn: "greatsword" }, coin: 120 },
-  hunter: { name: "사냥꾼 대장 로빈", boss: true, role: "ranged", hp: 560, atk: 20, cd: 1.1, range: 130, spd: 20, look: { skin: "#e8b890", hair: "#5a3a1a", cloth: "#2a6a3a", trim: "#d8a040", hat: "feathercap", wpn: "bow" }, coin: 160, shot: "arrow" },
-  archwizard: { name: "대마법사 메를로", boss: true, role: "ranged", hp: 620, atk: 26, cd: 1.6, range: 125, spd: 16, look: { skin: "#f4d0b0", hair: "#ffffff", cloth: "#2a2a7a", trim: "#c684ff", hat: "bigwizard", wpn: "staff" }, coin: 220, shot: "arcane" },
-  gourmet: { name: "미식왕 크리스피", boss: true, role: "melee", hp: 900, atk: 30, cd: 1.1, range: 18, spd: 18, look: { skin: "#f4c8a0", hair: "#3a2a1a", cloth: "#8a1a3a", trim: "#ffd84a", hat: "crown", wpn: "fork" }, coin: 400 },
+  guildmaster: { name: "용사 길드장 브레이브", boss: true, role: "melee", hp: 520, atk: 18, cd: 1.2, range: 16, spd: 20, look: { skin: "#f4c8a0", hair: "#d84a2a", cloth: "#c8343a", trim: "#ffd84a", hat: "crownhelm", wpn: "greatsword", cape: "#8a1a2a" }, coin: 120 },
+  hunter: { name: "사냥꾼 대장 로빈", boss: true, role: "ranged", hp: 560, atk: 20, cd: 1.1, range: 130, spd: 20, look: { skin: "#e8b890", hair: "#5a3a1a", cloth: "#2a6a3a", trim: "#d8a040", hat: "feathercap", wpn: "bow", cape: "#1e4a2a" }, coin: 160, shot: "arrow" },
+  archwizard: { name: "대마법사 메를로", boss: true, role: "ranged", hp: 620, atk: 26, cd: 1.6, range: 125, spd: 16, look: { skin: "#f4d0b0", hair: "#ffffff", cloth: "#2a2a7a", trim: "#c684ff", hat: "bigwitch", wpn: "staff", cape: "#1a1a4a", beard: true, gem: "#ff5aa0" }, coin: 220, shot: "arcane" },
+  gourmet: { name: "미식왕 크리스피", boss: true, role: "melee", hp: 900, atk: 30, cd: 1.1, range: 18, spd: 18, look: { skin: "#f4c8a0", hair: "#3a2a1a", cloth: "#8a1a3a", trim: "#ffd84a", hat: "crown", wpn: "fork", cape: "#c8343a" }, coin: 400 },
 };
 
 // ---------- regions ----------
