@@ -2,7 +2,7 @@ import { Game } from "./game.js";
 import { W, H } from "./bg.js";
 import { loadFx, drawFxFrame } from "./fx.js";
 import { Transitions } from "./transition.js";
-import { initAudio, sfx, playBgm, setVolumes, setMuted, duckBgm, jetLoop } from "./audio.js";
+import { initAudio, sfx, playBgm, setVolumes, setMuted, duckBgm, jetLoop, muffle, resetMix, windLoop, duck } from "./audio.js";
 import { SKINS, HATS, TRAILS, drawChicken } from "./sprites.js";
 import {
   loadSave, writeSave, UPGRADES, UPGRADE_COST, MAX_LV, CONSUMABLES, GACHA_PRICE, fillMissions, missionText, missionType,
@@ -135,6 +135,7 @@ function setScreen(name, html, bind) {
 const letters = (w) => [...w].map((ch, i) => `<span style="--i:${i}" data-t="${ch}">${ch}</span>`).join("");
 
 function showTitle() {
+  resetMix();
   game.state = "idle";
   jetLoop(false);
   playBgm("title");
@@ -487,6 +488,7 @@ function startRun() {
 }
 
 function beginRun() {
+  resetMix();
   closeModal();
   game.start();
   setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
@@ -499,7 +501,9 @@ function pause() {
   game.state = "paused";
   game.release();
   jetLoop(false);
-  duckBgm(0.3);
+  windLoop(0);
+  muffle(520, 0.25);
+  duckBgm(0.6);
   setScreen("pause", `
     <div class="panel">
       <h2>일시정지</h2>
@@ -510,6 +514,7 @@ function pause() {
 }
 function resume() {
   sfx("select");
+  muffle(20000, 0.3);
   setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
   duckBgm(1);
   game.state = "run";
@@ -545,6 +550,7 @@ function finishRun(r) {
 }
 
 function showOver() {
+  resetMix();
   const { r, newBest } = pending;
   playBgm("ending");
   duckBgm(0.8);

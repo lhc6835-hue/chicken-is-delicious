@@ -25,6 +25,7 @@ export class Transitions {
   run(type, mid, o = {}) {
     if (this.cur) { mid && mid(); return; }
     const dur = { shell: [0.34, 0.16, 0.5], iris: [0.75, 0.12, 0.45], feather: [0.2, 0.04, 0.22] }[type];
+    if (!o.skipIn) sfx(type === "feather" ? "whoosh2" : "whoosh", { vol: type === "feather" ? 0.35 : 0.6, rate: type === "iris" ? 0.6 : type === "shell" ? 0.8 : 1.1 });
     this.cur = { type, mid, o, t: 0, dIn: o.skipIn ? 0 : dur[0], dHold: dur[1], dOut: dur[2], midDone: false, slammed: o.skipIn };
     if (o.skipIn) { this.cur.midDone = true; mid && mid(); }
   }

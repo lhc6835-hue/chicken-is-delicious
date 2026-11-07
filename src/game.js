@@ -4,7 +4,7 @@
 import { W, H, drawBackground, groundTiles, biomeAt, BIOME_LEN } from "./bg.js";
 import { drawChicken, getProps, SKINS } from "./sprites.js";
 import { FxLayer, drawFxFrame } from "./fx.js";
-import { sfx, coinSound, jetLoop, setBgmRate } from "./audio.js";
+import { sfx, coinSound, jetLoop, setBgmRate, tapeStop, muffle, duck, windLoop, resetMix } from "./audio.js";
 import { upgradeValue } from "./data.js";
 
 const GROUND = 232;
@@ -445,9 +445,9 @@ export class Game {
     p.glideLeft = this.glideMax;
     if (vy > 380) {
       p.sx = 1.35; p.sy = 0.7;
-      sfx("land", { vol: Math.min(1, vy / 700) * 0.8 });
+      sfx("land", { vol: Math.min(1, vy / 700) * 0.8, rate: Math.max(0.7, 1.25 - vy / 1400) });
       for (let i = 0; i < 8; i++) this.dust(p.x + rnd(-10, 10), p.y, rnd(-90, 90), rnd(-50, -10));
-      if (vy > 560) { this.fx.add("land", p.x, p.y); this.addShake(2); }
+      if (vy > 560) { this.fx.add("land", p.x, p.y); this.addShake(2); sfx("crate", { vol: 0.35, rate: 0.7 }); duck(0.7, 0.01, 0.05, 0.2); }
     } else if (vy > 120) {
       p.sx = 1.15; p.sy = 0.88;
       for (let i = 0; i < 3; i++) this.dust(p.x + rnd(-8, 8), p.y, rnd(-50, 50), rnd(-30, -5));
@@ -466,6 +466,7 @@ export class Game {
     this.fx.add("heartLost", p.x, p.y - 40);
     sfx("shieldbreak", { vol: 1 });
     this.hitstop = 0.08; this.addShake(5); this.flash = 0.4; this.flashColor = "#8ae8ff";
+    duck(0.3, 0.01, 0.15, 0.5);
   }
 
   collide() {
@@ -498,6 +499,7 @@ export class Game {
         this.fx.add("itemBurst", it.x, it.y + 20);
         sfx("item", { vol: 0.8 });
         this.hitstop = 0.05;
+        duck(0.5, 0.01, 0.1, 0.4);
         this.sparkle(it.x, it.y, "#c8fff0", 14, 200);
         this.activate(it.kind);
       }
@@ -527,7 +529,7 @@ export class Game {
     this.fx.add("crit", cx - 20, o.y);
     sfx("smash", { vol: 0.9 });
     sfx(o.kind === "crate" || o.kind === "fence" ? "crate" : "metal", { vol: 0.7 });
-    if (!quiet) { this.hitstop = 0.07; this.addShake(6); this.zoom = 1.04; }
+    if (!quiet) { this.hitstop = 0.07; this.addShake(6); this.zoom = 1.04; duck(0.45, 0.005, 0.06, 0.25); }
     const cols = o.kind === "hay" ? ["#e8c050", "#fff0a0", "#b08828"] : o.kind === "thorns" ? ["#3a7a2a", "#24501a", "#e03040"] : ["#a86a38", "#d08c4a", "#7a4a24", "#3a2214"];
     this.debris(cx, cy, cols, 16);
     this.worldText(o.x, o.y - o.h - 8, "+50 SMASH!", "#ffc23d");
@@ -546,7 +548,7 @@ export class Game {
       this.worldText(c.x, c.y - 12, "+5", "#ff86e6");
     } else {
       this.coinCount += 1 * this.coinMult; this.score += 10 * mult;
-      coinSound(Math.min(this.combo - 1, 14));
+      coinSound(Math.min(this.combo - 1, 14), this.p.speed > 0);
       if (this.combo % 5 === 0) this.fx.add("coinBurst", c.x, c.y + 20, { alpha: 0.9 });
     }
     this.sparkle(c.x, c.y, "#fff6c4", 5, 90);
@@ -565,7 +567,9 @@ export class Game {
     p.alive = false;
     this.deathPos = { x: Math.round(p.x - this.camX), y: Math.round(Math.max(30, Math.min(H - 30, p.y - 18))) };
     jetLoop(false);
-    setBgmRate(1);
+    windLoop(0);
+    tapeStop(fell ? 0.9 : 1.3);
+    setTimeout(() => muffle(380, 0.5, true), fell ? 200 : 260);
     p.booster = 0; p.speed = 0;
     this.save.stats.deaths++;
     if (!fell) {
@@ -584,6 +588,8 @@ export class Game {
   }
 
   revive() {
+    resetMix();
+    setBgmRate(1, 0.6);
     const p = this.p;
     this.revived = true;
     p.alive = true; p.rot = 0; p.vx = 0; p.deadT = 0;
@@ -602,16 +608,33 @@ export class Game {
   frame(dt) {
     const p = this.p;
     // timers
-    if (this.comboT > 0) { this.comboT -= dt; if (this.comboT <= 0) this.combo = 0; }
+    if (this.comboT > 0) {
+      this.comboT -= dt;
+      if (this.comboT <= 0) {
+        if (this.combo >= 10 && p.alive) { sfx("combobreak", { vol: 0.45 }); this.worldText(p.x, p.y - 50, `${this.combo} 콤보 끝`, "#c8b8d0"); }
+        this.combo = 0;
+      }
+    }
     p.invuln = Math.max(0, p.invuln - dt);
     p.boostGrace = Math.max(0, p.boostGrace - dt);
     if (p.booster > 0) {
+      this.warnBeep("booster", p.booster, dt);
       p.booster -= dt;
       jetLoop(true, p.holding ? 1 : 0.15);
-      if (p.booster <= 0) { jetLoop(false); p.boostGrace = 1; p.glideLeft = this.glideMax; this.popText("부스터 끝!", "#ffc23d"); }
+      if (p.booster <= 0) { jetLoop(false); sfx("powerdown", { vol: 0.6 }); p.boostGrace = 1; p.glideLeft = this.glideMax; this.popText("부스터 끝!", "#ffc23d"); }
     }
-    if (p.speed > 0) { p.speed -= dt; if (p.speed <= 0) { setBgmRate(1); p.invuln = Math.max(p.invuln, 0.8); } }
-    if (p.magnet > 0) p.magnet -= dt;
+    if (p.speed > 0) { this.warnBeep("speed", p.speed, dt); p.speed -= dt; if (p.speed <= 0) { setBgmRate(1, 0.8); sfx("powerdown", { vol: 0.6, rate: 0.85 }); p.invuln = Math.max(p.invuln, 0.8); } }
+    if (p.magnet > 0) { p.magnet -= dt; if (p.magnet <= 0) sfx("powerdown", { vol: 0.35, rate: 1.3 }); }
+    // wind: soft while gliding, a roar in speed mode, a rush while falling fast
+    if (p.alive && this.state === "run") {
+      const fallRush = !p.ground && p.vy > 350 ? Math.min(1, (p.vy - 350) / 300) * 0.5 : 0;
+      windLoop(p.speed > 0 ? 0.9 : p.gliding ? 0.45 : fallRush, p.speed > 0 ? 1 : p.gliding ? 0.15 : 0.4);
+    }
+    // a ticking alarm when the glide is about to run out
+    if (p.gliding && p.glideLeft < this.glideMax * 0.3) {
+      this.glideWarnT = (this.glideWarnT || 0) - dt;
+      if (this.glideWarnT <= 0) { this.glideWarnT = 0.11; sfx("warn", { vol: 0.35, rate: 1.6 + (1 - p.glideLeft / (this.glideMax * 0.3)) * 0.8, vary: 0 }); }
+    }
     p.sx += (1 - p.sx) * Math.min(1, dt * 14); p.sy += (1 - p.sy) * Math.min(1, dt * 14);
     p.anim += dt * (this.worldSpeed / 18);
     p.flap += dt * (p.gliding ? 14 : 0);
@@ -722,6 +745,11 @@ export class Game {
       if (this.dieT <= 0) { this.state = "over"; this.hooks.onGameOver(this.result()); }
     }
     this.hooks.onHud && this.hooks.onHud();
+  }
+
+  warnBeep(kind, left, dt) {
+    // three rising beeps over the last second
+    for (const t of [1, 0.66, 0.33]) if (left > t && left - dt <= t) sfx("warn", { vol: 0.5, rate: 2.2 - t, vary: 0 });
   }
 
   skinFeathers() {
