@@ -1,22 +1,15 @@
 {
   "name": "chicken-is-delicious",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "꼬꼬 대시 - pixel art chicken runner",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "node tools/build.mjs",
+    "watch": "node tools/build.mjs --watch",
+    "bake": "node tools/bake-fx.mjs",
+    "serve": "python3 -m http.server 8080"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/lhc6835-hue/chicken-is-delicious.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/lhc6835-hue/chicken-is-delicious/issues"
-  },
-  "homepage": "https://github.com/lhc6835-hue/chicken-is-delicious#readme",
   "devDependencies": {
     "esbuild": "^0.25.10"
   }

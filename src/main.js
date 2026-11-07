@@ -1,0 +1,597 @@
+import { Game } from "./game.js";
+import { W, H } from "./bg.js";
+import { loadFx, drawFxFrame } from "./fx.js";
+import { initAudio, sfx, playBgm, setVolumes, setMuted, duckBgm, jetLoop } from "./audio.js";
+import { SKINS, HATS, TRAILS, drawChicken } from "./sprites.js";
+import {
+  loadSave, writeSave, UPGRADES, UPGRADE_COST, MAX_LV, CONSUMABLES, GACHA_PRICE, fillMissions, missionText, missionType,
+  todayStr, DAILY_REWARDS, defaultSave,
+} from "./data.js";
+
+const $ = (s, r = document) => r.querySelector(s);
+const canvas = $("#game");
+canvas.width = W; canvas.height = H;
+const ui = $("#ui");
+let save = loadSave();
+fillMissions(save);
+writeSave(save);
+setVolumes(save.settings.sfx, save.settings.bgm);
+setMuted(save.settings.muted);
+
+let screen = "title";
+let lastResult = null;
+
+const game = new Game(canvas, save, {
+  onGameOver(r) { finishRun(r); },
+  onMission(m) { toast(`🎯 미션 완료! ${missionText(m)}`); },
+  onHud() {},
+});
+
+// ---------------------------------------------------------------- layout
+function fit() {
+  const k = Math.min(window.innerWidth / W, window.innerHeight / H);
+  const s = k >= 1 ? Math.floor(k * 4) / 4 : k;
+  const wrap = $("#wrap");
+  wrap.style.width = `${Math.floor(W * s)}px`;
+  wrap.style.height = `${Math.floor(H * s)}px`;
+  document.documentElement.style.setProperty("--k", s);
+}
+window.addEventListener("resize", fit);
+fit();
+
+// ---------------------------------------------------------------- loop
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  game.update(dt);
+  game.draw();
+  if (screen === "shop" || screen === "title") drawPreview();
+  requestAnimationFrame(loop);
+}
+
+// ---------------------------------------------------------------- input
+function isTyping(e) { return e.target && (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON"); }
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
+    e.preventDefault();
+    if (e.repeat) return;
+    initAudio();
+    if (screen === "title") { startRun(); return; }
+    if (screen === "over" && e.code === "Space") { startRun(); return; }
+    if (screen === "run") game.press();
+  } else if (e.code === "Escape" || e.code === "KeyP") {
+    if (screen === "run") pause(); else if (screen === "pause") resume();
+  }
+});
+window.addEventListener("keyup", (e) => {
+  if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") game.release();
+});
+canvas.addEventListener("pointerdown", (e) => {
+  initAudio();
+  if (screen === "run") { e.preventDefault(); game.press(); }
+});
+window.addEventListener("pointerup", () => game.release());
+window.addEventListener("pointercancel", () => game.release());
+window.addEventListener("blur", () => { if (screen === "run") pause(); });
+document.addEventListener("visibilitychange", () => { if (document.hidden && screen === "run") pause(); });
+ui.addEventListener("click", (e) => { if (e.target.closest("button")) initAudio(); }, true);
+
+// ---------------------------------------------------------------- helpers
+function persist() { writeSave(save); }
+function coinsHtml() { return `<span class="coinpill"><i class="ic-coin"></i>${save.coins.toLocaleString()}</span>`; }
+function toast(text) {
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.textContent = text;
+  $("#toasts").appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+function btn(label, cls = "", attrs = "") { return `<button class="${cls}" ${attrs}>${label}</button>`; }
+function bindClicks(root, map) {
+  root.querySelectorAll("[data-act]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      const f = map[el.dataset.act];
+      if (f) { e.stopPropagation(); f(el, e); }
+    });
+  });
+}
+
+// a small canvas in the menus showing the chicken as dressed
+let previewCv = null;
+function drawPreview() {
+  if (!previewCv || !previewCv.isConnected) return;
+  const c = previewCv.getContext("2d");
+  c.imageSmoothingEnabled = false;
+  c.clearRect(0, 0, previewCv.width, previewCv.height);
+  const t = performance.now() / 1000;
+  const trail = previewCv.dataset.trail || save.trail;
+  c.fillStyle = "rgba(0,0,0,0.25)";
+  c.fillRect(previewCv.width / 2 - 20, previewCv.height - 10, 40, 4);
+  drawChicken(c, "run", Math.floor(t * 9) % 4, previewCv.dataset.skin || save.skin, previewCv.dataset.hat || save.hat, previewCv.width / 2, previewCv.height - 8, { scale: 3, phase: Math.floor(t * 8) });
+  if (trail && trail !== "none" && trail !== "dust") {
+    c.font = "14px sans-serif";
+    c.fillText({ hearts: "💗", stars: "⭐", notes: "🎵", fire: "🔥", rainbow: "🌈" }[trail] || "", 6, 22);
+  }
+}
+
+// ---------------------------------------------------------------- screens
+function setScreen(name, html, bind) {
+  screen = name;
+  ui.innerHTML = html;
+  ui.className = `screen-${name}`;
+  previewCv = $("canvas.preview", ui);
+  if (bind) bindClicks(ui, bind);
+}
+
+function showTitle() {
+  game.state = "idle";
+  jetLoop(false);
+  playBgm("title");
+  duckBgm(1);
+  const unclaimed = save.missions.filter((m) => m.done && !m.claimed).length;
+  setScreen("title", `
+    <div class="title-top">${coinsHtml()}<span class="best">최고 ${save.best.toLocaleString()}점 · ${save.bestDist}m</span></div>
+    <div class="logo"><div class="logo-sub">달려라 꼬꼬!</div><h1>꼬꼬 대시</h1></div>
+    <canvas class="preview" width="96" height="84"></canvas>
+    <div class="menu">
+      ${btn("▶ 시작하기", "big primary", 'data-act="play"')}
+      <div class="row">
+        ${btn("🛒 상점", "", 'data-act="shop"')}
+        ${btn(`🎯 미션${unclaimed ? `<b class="dot">${unclaimed}</b>` : ""}`, "", 'data-act="missions"')}
+        ${btn("🥚 뽑기", "", 'data-act="gacha"')}
+      </div>
+      <div class="row">
+        ${btn("📊 기록", "small", 'data-act="stats"')}
+        ${btn("⚙ 설정", "small", 'data-act="settings"')}
+        ${btn("❓ 방법", "small", 'data-act="help"')}
+      </div>
+    </div>
+    <div class="hint">스페이스 / 화면 터치로 시작</div>
+  `, {
+    play: () => startRun(),
+    shop: () => { sfx("open"); showShop("skin"); },
+    missions: () => { sfx("open"); showMissions(); },
+    gacha: () => { sfx("open"); showGacha(); },
+    stats: () => { sfx("open"); showStats(); },
+    settings: () => { sfx("open"); showSettings(); },
+    help: () => { sfx("open"); showHelp(); },
+  });
+  ui.querySelector(".logo").addEventListener("click", () => sfx("jump", { rate: 1 + Math.random() }));
+  ui.onpointerdown = (e) => { if (screen === "title" && e.target === ui && !$(".modal", ui)) startRun(); };
+  checkDaily();
+}
+
+function checkDaily() {
+  const today = todayStr();
+  if (save.daily.last === today) return;
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  const yStr = `${y.getFullYear()}-${y.getMonth() + 1}-${y.getDate()}`;
+  const streak = save.daily.last === yStr ? save.daily.streak + 1 : 1;
+  const reward = DAILY_REWARDS[(streak - 1) % DAILY_REWARDS.length];
+  const days = DAILY_REWARDS.map((r, i) => `<div class="day ${i < ((streak - 1) % 7) ? "got" : i === (streak - 1) % 7 ? "now" : ""}"><small>${i + 1}일</small><b>${r}</b></div>`).join("");
+  modal(`
+    <h2>🌞 출석 보상</h2>
+    <p>${streak}일 연속 출석!</p>
+    <div class="days">${days}</div>
+    ${btn(`코인 ${reward}개 받기`, "primary", 'data-act="claim"')}
+  `, {
+    claim: (el) => {
+      save.daily = { last: today, streak };
+      save.coins += reward;
+      persist();
+      sfx("buy"); sfx("j_mission", { delay: 0.1, vol: 0.6 });
+      closeModal();
+      showTitle();
+      toast(`코인 +${reward}`);
+    },
+  });
+}
+
+function modal(html, bind) {
+  closeModal();
+  const m = document.createElement("div");
+  m.className = "modal";
+  m.innerHTML = `<div class="panel">${html}</div>`;
+  ui.appendChild(m);
+  bindClicks(m, bind || {});
+  return m;
+}
+function closeModal() { const m = $(".modal", ui); if (m) m.remove(); }
+
+function showHelp() {
+  setScreen("help", `
+    <div class="panel wide">
+      <h2>❓ 플레이 방법</h2>
+      <ul class="help">
+        <li><b>스페이스 / 터치</b> : 점프. 길게 누를수록 높이 뛰어요.</li>
+        <li><b>공중에서 꾹 누르기</b> : 날개를 퍼덕이며 천천히 활공해요 (머리 위 게이지).</li>
+        <li><b>🚀 부스터</b> : 누르고 있으면 하늘로 날아올라요. 하늘 코인 길을 따라가요!</li>
+        <li><b>⚡ 배속</b> : 엄청 빨라지고 장애물을 몽땅 부숴요. 점수 2배!</li>
+        <li><b>🧲 자석</b> : 근처 코인을 끌어당겨요. <b>💗 방패</b> : 한 번 막아줘요.</li>
+        <li><b>🥚 황금알</b> : 코인 폭탄! &nbsp; <b>스프링</b> : 엄청 높이 튕겨요.</li>
+        <li><b>까마귀</b>는 위에서 밟으면 보너스! &nbsp; <b>회색 돌 발판</b>은 금방 무너져요.</li>
+        <li>코인을 끊기지 않게 먹으면 <b>콤보</b>가 쌓이고 소리가 점점 올라가요.</li>
+        <li>P / ESC : 일시정지</li>
+      </ul>
+      ${btn("돌아가기", "", 'data-act="back"')}
+    </div>
+  `, { back: () => { sfx("back"); showTitle(); } });
+}
+
+function showStats() {
+  const st = save.stats;
+  const rows = [
+    ["최고 점수", save.best.toLocaleString()], ["최장 거리", `${save.bestDist}m`], ["플레이 횟수", st.runs], ["총 달린 거리", `${Math.floor(st.distTotal).toLocaleString()}m`],
+    ["모은 코인", st.coinsTotal.toLocaleString()], ["점프", st.jumps], ["활공 시간", `${Math.floor(st.glide)}초`], ["부스터 사용", st.boosters],
+    ["배속 사용", st.speeds], ["부순 장애물", st.smash], ["밟은 까마귀", st.crows], ["깬 황금알", st.eggs], ["완료한 미션", st.missionsDone],
+  ];
+  setScreen("stats", `
+    <div class="panel wide">
+      <h2>📊 기록</h2>
+      <div class="stats">${rows.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("")}</div>
+      ${btn("돌아가기", "", 'data-act="back"')}
+    </div>
+  `, { back: () => { sfx("back"); showTitle(); } });
+}
+
+function showSettings() {
+  const s = save.settings;
+  setScreen("settings", `
+    <div class="panel">
+      <h2>⚙ 설정</h2>
+      <label class="set">효과음 <input type="range" min="0" max="1" step="0.05" value="${s.sfx}" data-k="sfx"></label>
+      <label class="set">배경음악 <input type="range" min="0" max="1" step="0.05" value="${s.bgm}" data-k="bgm"></label>
+      <label class="set">화면 흔들림 ${btn(s.shake ? "켜짐" : "꺼짐", "small", 'data-act="shake"')}</label>
+      <label class="set">음소거 ${btn(s.muted ? "켜짐" : "꺼짐", "small", 'data-act="mute"')}</label>
+      <div class="row">${btn("데이터 초기화", "small danger", 'data-act="reset"')}${btn("돌아가기", "", 'data-act="back"')}</div>
+    </div>
+  `, {
+    back: () => { sfx("back"); showTitle(); },
+    shake: () => { s.shake = !s.shake; persist(); sfx("toggle"); showSettings(); },
+    mute: () => { s.muted = !s.muted; setMuted(s.muted); persist(); sfx("toggle"); showSettings(); },
+    reset: () => {
+      modal(`<h2>정말 초기화할까요?</h2><p>코인, 스킨, 기록이 모두 사라져요.</p><div class="row">${btn("취소", "", 'data-act="no"')}${btn("초기화", "danger", 'data-act="yes"')}</div>`, {
+        no: () => closeModal(),
+        yes: () => {
+          const keep = save.settings;
+          Object.keys(save).forEach((k) => delete save[k]);
+          Object.assign(save, defaultSave(), { settings: keep });
+          fillMissions(save); persist(); closeModal(); sfx("back"); showTitle();
+        },
+      });
+    },
+  });
+  ui.querySelectorAll("input[type=range]").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      s[inp.dataset.k] = +inp.value;
+      setVolumes(s.sfx, s.bgm);
+      persist();
+    });
+    inp.addEventListener("change", () => sfx("coin", { vol: 0.8 }));
+  });
+}
+
+// ---------------------------------------------------------------- shop
+function showShop(tab = "skin") {
+  const tabs = [["skin", "🐔 스킨"], ["hat", "🎩 모자"], ["trail", "✨ 트레일"], ["up", "⬆ 강화"], ["item", "🎒 아이템"]];
+  let list = "";
+  if (tab === "skin" || tab === "hat" || tab === "trail") {
+    const arr = tab === "skin" ? SKINS : tab === "hat" ? HATS : TRAILS;
+    list = arr.map((it) => {
+      const owned = save.owned[tab].includes(it.id);
+      const eq = save[tab] === it.id;
+      const label = eq ? "착용중" : owned ? "착용" : `<i class="ic-coin"></i>${it.price}`;
+      return `<div class="card ${eq ? "eq" : ""} ${owned ? "" : "locked"}" data-act="hover" data-id="${it.id}">
+        <canvas class="thumb" width="40" height="40" data-tab="${tab}" data-id="${it.id}"></canvas>
+        <div class="nm">${it.name}</div>
+        ${btn(label, eq ? "small on" : owned ? "small" : "small buy", `data-act="pick" data-id="${it.id}"`)}
+      </div>`;
+    }).join("");
+  } else if (tab === "up") {
+    list = UPGRADES.map((u) => {
+      const lv = save.up[u.id] || 0, max = lv >= MAX_LV;
+      const pips = Array.from({ length: MAX_LV }, (_, i) => `<i class="${i < lv ? "on" : ""}"></i>`).join("");
+      return `<div class="card up"><div class="big-ic">${u.icon}</div><div class="nm">${u.name}</div><div class="desc">${u.desc}</div><div class="pips">${pips}</div>
+        ${btn(max ? "MAX" : `<i class="ic-coin"></i>${UPGRADE_COST[lv]}`, max ? "small on" : "small buy", `data-act="up" data-id="${u.id}" ${max ? "disabled" : ""}`)}</div>`;
+    }).join("");
+  } else {
+    list = CONSUMABLES.map((c) => `<div class="card up"><div class="big-ic">${c.icon}</div><div class="nm">${c.name}</div><div class="desc">${c.desc}</div><div class="desc">보유: ${save.items[c.id] || 0}</div>
+      ${btn(`<i class="ic-coin"></i>${c.price}`, "small buy", `data-act="item" data-id="${c.id}"`)}</div>`).join("");
+  }
+  setScreen("shop", `
+    <div class="shop">
+      <div class="shop-head"><h2>🛒 상점</h2>${coinsHtml()}${btn("✕", "small", 'data-act="back"')}</div>
+      <div class="tabs">${tabs.map(([k, n]) => btn(n, k === tab ? "tab on" : "tab", `data-act="tab" data-id="${k}"`)).join("")}</div>
+      <div class="shop-body">
+        <div class="side"><canvas class="preview" width="96" height="84"></canvas><div class="side-nm"></div></div>
+        <div class="grid">${list}</div>
+      </div>
+    </div>
+  `, {
+    back: () => { sfx("back"); showTitle(); },
+    tab: (el) => { sfx("select"); showShop(el.dataset.id); },
+    pick: (el) => buyOrEquip(tab, el.dataset.id),
+    up: (el) => buyUpgrade(el.dataset.id),
+    item: (el) => buyItem(el.dataset.id),
+    hover: () => {},
+  });
+  // thumbnails and hover preview
+  ui.querySelectorAll("canvas.thumb").forEach((c) => {
+    const x = c.getContext("2d"); x.imageSmoothingEnabled = false;
+    const t = c.dataset.tab, id = c.dataset.id;
+    if (t === "trail") {
+      x.font = "22px sans-serif"; x.textAlign = "center";
+      x.fillText({ none: "🚫", dust: "💨", hearts: "💗", stars: "⭐", notes: "🎵", fire: "🔥", rainbow: "🌈" }[id], 20, 30);
+    } else drawChicken(x, "idle", 0, t === "skin" ? id : save.skin, t === "hat" ? id : "none", 20, 39, { scale: 1.5, phase: 3 });
+  });
+  ui.querySelectorAll(".card[data-id]").forEach((card) => {
+    card.addEventListener("mouseenter", () => {
+      if (!previewCv) return;
+      previewCv.dataset[tab] = card.dataset.id;
+      const arr = tab === "skin" ? SKINS : tab === "hat" ? HATS : TRAILS;
+      $(".side-nm", ui).textContent = (arr.find((a) => a.id === card.dataset.id) || {}).name || "";
+    });
+    card.addEventListener("mouseleave", () => { if (previewCv) delete previewCv.dataset[tab]; });
+  });
+}
+
+function spend(price) {
+  if (save.coins < price) { sfx("error"); toast("코인이 부족해요!"); return false; }
+  save.coins -= price;
+  sfx("buy"); sfx("cointick", { delay: 0.05 }); sfx("cointick", { delay: 0.1, rate: 1.2 });
+  return true;
+}
+
+function buyOrEquip(tab, id) {
+  const arr = tab === "skin" ? SKINS : tab === "hat" ? HATS : TRAILS;
+  const it = arr.find((a) => a.id === id);
+  if (!save.owned[tab].includes(id)) {
+    if (!spend(it.price)) return;
+    save.owned[tab].push(id);
+    toast(`${it.name} 획득!`);
+  } else sfx("select");
+  save[tab] = id;
+  persist();
+  showShop(tab);
+}
+function buyUpgrade(id) {
+  const lv = save.up[id] || 0;
+  if (lv >= MAX_LV) return;
+  if (!spend(UPGRADE_COST[lv])) return;
+  save.up[id] = lv + 1;
+  sfx("levelup", { vol: 0.6 });
+  persist();
+  showShop("up");
+}
+function buyItem(id) {
+  const c = CONSUMABLES.find((x) => x.id === id);
+  if (!spend(c.price)) return;
+  save.items[id] = (save.items[id] || 0) + 1;
+  persist();
+  showShop("item");
+}
+
+// ---------------------------------------------------------------- gacha: hatch an egg for a random cosmetic
+function showGacha() {
+  setScreen("gacha", `
+    <div class="panel">
+      <h2>🥚 황금알 뽑기</h2>
+      <p>코인 ${GACHA_PRICE}개로 알을 깨면 아직 없는 스킨·모자·트레일 중 하나가 나와요!<br><small>(모두 가졌다면 코인 500개)</small></p>
+      <canvas class="eggcv" width="160" height="110"></canvas>
+      <div class="gacha-res"></div>
+      <div class="row">${btn(`<i class="ic-coin"></i>${GACHA_PRICE} 알 깨기`, "primary", 'data-act="hatch"')}${btn("돌아가기", "", 'data-act="back"')}</div>
+      <div class="gacha-coins">${coinsHtml()}</div>
+    </div>
+  `, {
+    back: () => { sfx("back"); showTitle(); },
+    hatch: (el) => {
+      if (el.disabled) return;
+      if (!spend(GACHA_PRICE)) return;
+      el.disabled = true;
+      const pool = [];
+      for (const [tab, arr] of [["skin", SKINS], ["hat", HATS], ["trail", TRAILS]]) for (const it of arr) if (!save.owned[tab].includes(it.id)) pool.push([tab, it]);
+      const prize = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+      playEgg($("canvas.eggcv", ui), () => {
+        const res = $(".gacha-res", ui);
+        if (prize) {
+          save.owned[prize[0]].push(prize[1].id);
+          res.innerHTML = `🎉 <b>${prize[1].name}</b> ${{ skin: "스킨", hat: "모자", trail: "트레일" }[prize[0]]} 획득!`;
+        } else { save.coins += 500; res.innerHTML = "🎉 전부 모았네요! 코인 <b>500</b>개!"; }
+        persist();
+        sfx("j_best", { vol: 0.7, vary: 0 });
+        el.disabled = false;
+        ui.querySelector(".gacha-coins").innerHTML = coinsHtml();
+      });
+    },
+  });
+}
+
+function playEgg(cv, done) {
+  const c = cv.getContext("2d");
+  c.imageSmoothingEnabled = false;
+  const t0 = performance.now();
+  sfx("egg", { vol: 0.9 });
+  setTimeout(() => sfx("egg", { vol: 1, rate: 1.2 }), 800);
+  setTimeout(() => sfx("egg", { vol: 1, rate: 1.4 }), 1500);
+  setTimeout(() => { sfx("smash", { vol: 0.6 }); sfx("gem", { vol: 0.8 }); sfx("combo", { vol: 0.6 }); }, 2050);
+  let fired = false;
+  const tick = () => {
+    const t = (performance.now() - t0) / 1000;
+    c.clearRect(0, 0, cv.width, cv.height);
+    drawFxFrame(c, "egg", Math.floor(t * 20), 80, 92, {});
+    if (t > 2.05) drawFxFrame(c, "coinBurst", Math.floor((t - 2.05) * 30), 80, 96, {});
+    if (t > 2.1 && !fired) { fired = true; done(); }
+    if (t < 4 && cv.isConnected) requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+// ---------------------------------------------------------------- missions
+function showMissions() {
+  const items = save.missions.map((m, i) => {
+    const t = missionType(m);
+    const prog = m.done ? m.goal : t.run ? (m.progress || 0) : Math.max(0, (save.stats[m.key] || 0) - m.base);
+    const k = Math.min(1, prog / m.goal);
+    return `<div class="mission ${m.done ? "done" : ""}">
+      <div class="mt">${missionText(m)}</div>
+      <div class="bar"><i style="width:${Math.round(k * 100)}%"></i><span>${Math.min(prog, m.goal)} / ${m.goal}</span></div>
+      ${m.done ? btn(`<i class="ic-coin"></i>${m.reward} 받기`, "small primary", `data-act="claim" data-i="${i}"`) : `<div class="reward"><i class="ic-coin"></i>${m.reward}</div>`}
+    </div>`;
+  }).join("");
+  setScreen("missions", `
+    <div class="panel wide">
+      <h2>🎯 미션</h2>
+      <p class="sub">미션을 깨면 더 어려운 미션이 나와요. 지금까지 ${save.stats.missionsDone}개 완료!</p>
+      ${items}
+      ${btn("돌아가기", "", 'data-act="back"')}
+    </div>
+  `, {
+    back: () => { sfx("back"); showTitle(); },
+    claim: (el) => {
+      const i = +el.dataset.i, m = save.missions[i];
+      save.coins += m.reward;
+      save.missionTier[m.key] = (save.missionTier[m.key] || 0) + 1;
+      save.stats.missionsDone++;
+      save.missions.splice(i, 1);
+      fillMissions(save);
+      persist();
+      sfx("buy"); sfx("j_mission", { delay: 0.08, vol: 0.6 });
+      toast(`코인 +${m.reward}`);
+      showMissions();
+    },
+  });
+}
+
+// ---------------------------------------------------------------- run flow
+function startRun() {
+  ui.onpointerdown = null;
+  closeModal();
+  sfx("select");
+  game.start();
+  setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
+  playBgm(["run1", "run2", "run3"][save.stats.runs % 3]);
+  duckBgm(1);
+}
+
+function pause() {
+  if (screen !== "run") return;
+  game.state = "paused";
+  game.release();
+  jetLoop(false);
+  duckBgm(0.3);
+  setScreen("pause", `
+    <div class="panel">
+      <h2>일시정지</h2>
+      <div class="pause-missions">${save.missions.map((m) => `<div>${m.done || game.missionProgress(m) >= m.goal ? "✅" : "⬜"} ${missionText(m)}</div>`).join("")}</div>
+      <div class="row">${btn("▶ 계속", "primary", 'data-act="resume"')}${btn("그만하기", "", 'data-act="quit"')}</div>
+    </div>
+  `, { resume: () => resume(), quit: () => { game.die(true); game.state = "over"; finishRun(game.result()); } });
+}
+function resume() {
+  sfx("select");
+  setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
+  duckBgm(1);
+  game.state = "run";
+  last = performance.now();
+}
+
+let pending = null;
+function finishRun(r) {
+  lastResult = r;
+  jetLoop(false);
+  // stats and missions
+  const st = save.stats;
+  st.runs++;
+  st.distTotal += r.dist;
+  st.coinsTotal += r.coins;
+  for (const k of Object.keys(r.run)) st[k] = (st[k] || 0) + r.run[k];
+  for (const m of save.missions) {
+    if (m.done) continue;
+    const t = missionType(m);
+    if (t.run) {
+      const v = { dist: r.dist, coins: r.coins, combo: r.combo }[m.key] || 0;
+      m.progress = Math.max(m.progress || 0, v);
+      if (m.progress >= m.goal) m.done = true;
+    } else if ((st[m.key] || 0) - m.base >= m.goal) m.done = true;
+  }
+  save.coins += r.coins;
+  const newBest = r.score > save.best;
+  if (newBest) save.best = r.score;
+  save.bestDist = Math.max(save.bestDist, r.dist);
+  persist();
+  pending = { r, newBest };
+  showOver();
+}
+
+function showOver() {
+  const { r, newBest } = pending;
+  playBgm("ending");
+  duckBgm(0.8);
+  sfx(newBest ? "j_best" : "j_gameover", { vol: 0.8, vary: 0 });
+  const reviveCost = 150;
+  const canRevive = !r.revived && save.coins >= reviveCost && !game.revived;
+  const doneCount = save.missions.filter((m) => m.done && !m.claimed).length;
+  setScreen("over", `
+    <div class="panel over">
+      <h2>${newBest ? "🏆 신기록!" : "꼬꼬 다운..."}</h2>
+      <div class="score" data-to="${r.score}">0</div>
+      <div class="over-grid">
+        <div><span>거리</span><b>${r.dist}m</b></div>
+        <div><span>코인</span><b><i class="ic-coin"></i>+${r.coins}</b></div>
+        <div><span>최대 콤보</span><b>${r.combo}</b></div>
+        <div><span>최고 점수</span><b>${save.best.toLocaleString()}</b></div>
+      </div>
+      ${doneCount ? `<div class="mdone">🎯 완료한 미션 ${doneCount}개! 미션 화면에서 보상을 받으세요</div>` : ""}
+      <div class="row">
+        ${canRevive ? btn(`💗 부활 <i class="ic-coin"></i>${reviveCost}`, "revive", 'data-act="revive"') : ""}
+        ${btn("↻ 다시하기", "primary", 'data-act="again"')}
+        ${btn("🏠 홈", "", 'data-act="home"')}
+      </div>
+    </div>
+  `, {
+    again: () => startRun(),
+    home: () => { sfx("back"); showTitle(); },
+    revive: () => {
+      if (save.coins < reviveCost) return;
+      // undo the run's bookkeeping; it is counted again when this run really ends
+      const st = save.stats;
+      st.runs--; st.distTotal -= r.dist; st.coinsTotal -= r.coins;
+      for (const k of Object.keys(r.run)) st[k] -= r.run[k];
+      save.coins -= r.coins + reviveCost;
+      persist();
+      setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
+      playBgm(["run1", "run2", "run3"][save.stats.runs % 3]);
+      game.revive();
+    },
+  });
+  // count the score up with ticks
+  const el = $(".score", ui), to = r.score, t0 = performance.now();
+  let lastTick = 0;
+  const tick = () => {
+    const k = Math.min(1, (performance.now() - t0) / 900);
+    const v = Math.floor(to * (1 - Math.pow(1 - k, 3)));
+    el.textContent = v.toLocaleString();
+    if (performance.now() - lastTick > 60 && k < 1) { lastTick = performance.now(); sfx("cointick", { vol: 0.3, rate: 1 + k }); }
+    if (k < 1 && el.isConnected) requestAnimationFrame(tick);
+    else if (newBest && el.isConnected) {
+      el.classList.add("pop");
+      game.sfx2.add("newBest", W / 2, 120, { clip: 62 });
+      game.sfx2.add("firework", 110, 130);
+      setTimeout(() => game.sfx2.add("firework", 370, 120), 350);
+      game.sfx2.add("confetti", W / 2, 200);
+    }
+  };
+  tick();
+}
+
+// ---------------------------------------------------------------- boot
+$("#loading").textContent = "이펙트 불러오는 중...";
+Promise.all([loadFx(), document.fonts ? document.fonts.load("12px Galmuri11").catch(() => {}) : null]).then(() => {
+  $("#loading").remove();
+  showTitle();
+  requestAnimationFrame(loop);
+});
+
+// test hook: index.html?debug exposes the game and save in the console
+if (location.search.includes("debug")) { window.kkokko = { game, save, showShop, showMissions, showGacha, persist }; }
