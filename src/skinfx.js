@@ -97,6 +97,7 @@ export function partIsFront(q) {
 /** Draws one particle at screen (x, y). Shared by the game and the shop preview. */
 export function drawPart(ctx, q, x, y, time, worldSpeed = 0) {
   const k = 1 - q.t / q.life;
+  if (q.sway) x += Math.round(Math.sin(q.t * 5 + (q.ph || 0)) * q.sway);
   ctx.fillStyle = q.color;
   ctx.globalAlpha = q.kind === "smoke" || q.kind === "dust" || q.kind === "wisp" ? k * 0.7 : Math.min(1, k * 2);
   switch (q.kind) {
@@ -121,6 +122,31 @@ export function drawPart(ctx, q, x, y, time, worldSpeed = 0) {
       let px = x, py = y;
       for (let i = 0; i < steps; i++) { px += dx + (i % 2 ? 1 : -1); py += dy; ctx.fillRect(Math.round(px), Math.round(py), 1, 1); ctx.fillRect(Math.round(px - dx / 2), Math.round(py - dy / 2), 1, 1); }
       ctx.restore(); break;
+    }
+    case "puff": {
+      // a soft round puff that swells and thins out
+      const r = (q.size + (q.grow || 0) * (q.t / q.life)) / 2;
+      ctx.globalAlpha = 0.55 * k;
+      const ri = Math.max(1, Math.round(r));
+      for (let dy = -ri; dy <= ri; dy++) { const hw = Math.round(Math.sqrt(Math.max(0, r * r - dy * dy))); ctx.fillRect(x - hw, y + dy, hw * 2 + 1, 1); }
+      break;
+    }
+    case "twinkle": {
+      // grows into a four-point sparkle and shrinks away, with a white core
+      const s = Math.sin(Math.min(1, q.t / q.life) * Math.PI);
+      const arm = Math.round(1 + s * 3);
+      ctx.globalAlpha = Math.min(1, s * 1.6);
+      ctx.fillRect(x, y - arm, 1, arm * 2 + 1); ctx.fillRect(x - arm, y, arm * 2 + 1, 1);
+      if (arm >= 3) ctx.fillRect(x - 1, y - 1, 3, 3);
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(x, y, 1, 1);
+      break;
+    }
+    case "ember": {
+      const sz = Math.max(1, Math.round(q.size * (0.35 + k * 0.75)));
+      ctx.globalAlpha = Math.min(1, k * 2.2);
+      ctx.fillRect(x - (sz >> 1), y - (sz >> 1), sz, sz);
+      if (sz >= 2) { ctx.fillStyle = "#fff3a6"; ctx.fillRect(x - (sz >> 1), y - (sz >> 1), 1, 1); }
+      break;
     }
     case "soul": {
       // a little ghost rising

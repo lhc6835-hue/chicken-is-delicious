@@ -4,6 +4,7 @@ import { loadFx, drawFxFrame } from "./fx.js";
 import { Transitions } from "./transition.js";
 import { iconHtml as I, drawIcon, TRAIL_ICON } from "./icons.js";
 import { skinFx, drawPart, partIsFront, stepParts } from "./skinfx.js";
+import { trailFx, drawRibbon } from "./trails.js";
 import { initAudio, sfx, playBgm, setVolumes, setMuted, duckBgm, jetLoop, muffle, resetMix, windLoop, duck } from "./audio.js";
 import { SKINS, HATS, TRAILS, drawChicken } from "./sprites.js";
 import {
@@ -135,7 +136,7 @@ function bindClicks(root, map) {
 
 // a small canvas in the menus showing the chicken as dressed
 let previewCv = null;
-const pv = { parts: [], acc: 0, last: 0, beat: -1, skin: "" };
+const pv = { parts: [], acc: 0, tacc: 0, tin: 0, last: 0, beat: -1, skin: "", trail: "" };
 function drawPreview() {
   if (!previewCv || !previewCv.isConnected) return;
   const c = previewCv.getContext("2d");
@@ -146,7 +147,16 @@ function drawPreview() {
   const skin = previewCv.dataset.skin || save.skin, f = skinFx(skin);
   const fx = previewCv.width / 2, fy = previewCv.height - 8, dt = Math.min(0.05, t - (pv.last || t));
   pv.last = t;
-  if (pv.skin !== skin) { pv.skin = skin; pv.parts.length = 0; pv.acc = 0; }
+  if (pv.skin !== skin || pv.trail !== trail) { pv.skin = skin; pv.trail = trail; pv.parts.length = 0; pv.acc = 0; pv.tacc = 0; pv.tin = 0; }
+  // the trail: a ribbon waving behind the chicken plus its particles, at preview scale
+  const tf = trailFx(trail), K = 1.5, tx = fx - 8 * K;
+  const tyAt = (d) => fy - 17 * K + Math.sin(d * 0.05 + t * 3) * 3;
+  pv.tin = Math.min(1, pv.tin + dt * 2.5);
+  if (tf.emit && tf.rate) {
+    pv.tacc += dt * tf.rate;
+    // in the preview the "world" doesn't scroll, so particles are pushed back by hand
+    while (pv.tacc >= 1) { pv.tacc -= 1; tf.emit((q) => { q.vx -= 70; pv.parts.push(q); }, tx + 8 * K, fy - 17 * K, K, { ground: true, yAt: tyAt }); }
+  }
   // the skin's effects, at preview scale: running particles plus a showcase jump every 2.4 s
   const emit = (q) => pv.parts.push(q);
   if (f.run && f.rate) { pv.acc += dt * f.rate; while (pv.acc >= 1) { pv.acc -= 1; f.run(emit, fx, fy, 1.5, { time: t }); } }
@@ -156,12 +166,10 @@ function drawPreview() {
   for (const q of pv.parts) if (!partIsFront(q)) drawPart(c, q, Math.round(q.x), Math.round(q.y), t);
   c.fillStyle = "rgba(0,0,0,0.25)";
   c.fillRect(previewCv.width / 2 - 20, previewCv.height - 10, 40, 4);
+  if (trail !== "none") drawRibbon(c, trail, tx, tyAt, t, K, pv.tin);
   const dy = f.float ? Math.round(Math.sin(t * 4) * 3 - 4) : 0;
   drawChicken(c, "run", Math.floor(t * 9) % 4, skin, previewCv.dataset.hat || save.hat, fx, fy, { scale: 3, phase: Math.floor(t * 8), dy, eye: f.eye, glint: f.glint ? t : undefined, aura: f.aura, time: t });
   for (const q of pv.parts) if (partIsFront(q)) drawPart(c, q, Math.round(q.x), Math.round(q.y), t);
-  if (trail && trail !== "none" && trail !== "dust") {
-    drawIcon(c, TRAIL_ICON[trail], 12, 12, 1);
-  }
 }
 
 // ---------------------------------------------------------------- screens

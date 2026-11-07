@@ -7,6 +7,7 @@ import { FxLayer, drawFxFrame } from "./fx.js";
 import { sfx, coinSound, jetLoop, setBgmRate, tapeStop, muffle, duck, windLoop, resetMix, chirp } from "./audio.js";
 import { CHICK, drawChick, drawChickEgg, chickIcon } from "./chicks.js";
 import { skinFx, drawPart, partIsFront } from "./skinfx.js";
+import { trailFx, drawRibbon } from "./trails.js";
 import { upgradeValue } from "./data.js";
 
 const GROUND = 232;
@@ -85,7 +86,7 @@ export class Game {
     this.coinMult = 1;
     this.banner = null;
     this.stepT = 0;
-    this.trailT = 0;
+    this.trailT = 0; this.trailIn = 0; this.trailAcc = 0;
     this.ghostT = 0;
     this.speedLines = [];
     this.missionsShown = new Set();
@@ -398,6 +399,9 @@ export class Game {
     this.stepT -= dt;
     if (this.stepT <= 0) { this.stepT = 0.08; this.dust(this.p.x - 6, this.p.y, -30, -20); }
     this.skinEmit("run", dt);
+    this.path.push({ x: this.p.x, y: this.p.y });
+    while (this.path.length > 2 && this.path[1].x < this.p.x - 400) this.path.shift();
+    this.emitTrail(dt);
     this.updateParts(dt);
     this.fx.update(dt);
   }
@@ -760,13 +764,12 @@ export class Game {
         this.stepT -= dt;
         if (this.stepT <= 0) {
           this.stepT = 0.11 * (210 / this.worldSpeed);
-          if (this.save.trail === "dust" || this.save.trail === "none") this.dust(p.x - 6, p.y, -40, rnd(-30, -10));
+          if (this.save.trail === "none") this.dust(p.x - 6, p.y, -40, rnd(-30, -10));
           sfx(Math.random() < 0.5 ? "step1" : "step2", { vol: 0.12, rate: 1.4 });
         }
       }
       this.skinEmit("run", dt);
-      this.trailT -= dt;
-      if (this.trailT <= 0) { this.trailT = 0.05; this.emitTrail(); }
+      this.emitTrail(dt);
       if (p.gliding && Math.random() < dt * 8) this.feathers(p.x - 6, p.y - 8, 1, this.skinFeathers());
       if (p.gliding && Math.floor(p.flap) % 2 === 0 && !p._flapped) { p._flapped = true; sfx("flap", { vol: 0.25, rate: 1.8 }); }
       if (Math.floor(p.flap) % 2 === 1) p._flapped = false;
@@ -993,17 +996,18 @@ export class Game {
     return [pal.S || "#e4c0a3", pal.L || "#f5ddca", pal.W || "#c49488"];
   }
 
-  emitTrail() {
-    const p = this.p, t = this.save.trail;
-    const x = p.x - 12, y = p.y - 10 + rnd(-4, 4);
-    if (t === "hearts") this.part({ x, y, vx: -40, vy: -20, size: 1, life: 0.7, kind: "heart", color: pick(["#ff4a6a", "#ff8aa0"]) });
-    else if (t === "stars") this.part({ x, y, vx: rnd(-60, -20), vy: rnd(-30, 30), size: 1, life: 0.6, kind: "star", color: pick(["#fff07a", "#ffffff", "#ffc23d"]) });
-    else if (t === "notes") this.part({ x, y: y - 6, vx: -30, vy: -40, size: 1, life: 0.8, kind: "note", color: pick(["#7ad8ff", "#ff86e6", "#fff07a"]) });
-    else if (t === "fire") for (let i = 0; i < 2; i++) this.part({ x: x + 4, y: y + 2, vx: rnd(-90, -40), vy: rnd(-60, -10), g: -120, drag: 2, size: ri(2, 4), life: rnd(0.25, 0.45), kind: "fire", color: pick(["#fff3a6", "#ffc23d", "#ff8a2a", "#e0501a"]) });
-    else if (t === "rainbow") {
-      const cols = ["#ff4a4a", "#ffa03a", "#ffe03c", "#5ad84a", "#3cc8ff", "#7a6cff"];
-      cols.forEach((c, i) => this.part({ x: x + 6, y: p.y - 20 + i * 2, vx: -this.worldSpeed * 0.0, vy: 0, size: 2, life: 0.35, kind: "band", color: c, w: 8 }));
-    }
+  /** The trail's ribbon is drawn from the path; this adds its particles. */
+  emitTrail(dt) {
+    const f = trailFx(this.save.trail), p = this.p;
+    this.trailIn = Math.min(1, (this.trailIn || 0) + dt * 2.5);
+    if (!f.emit || !f.rate) return;
+    this.trailAcc = (this.trailAcc || 0) + dt * f.rate;
+    const st = { ground: !!p.ground, yAt: (d) => this.trailY(d) };
+    while (this.trailAcc >= 1) { this.trailAcc -= 1; f.emit((q) => this.parts.push(q), p.x - 8, p.y - 17 + this.skinDy(), 1, st); }
+  }
+  trailY(d) {
+    const p = this.p, y = this.pathY(p.x - 8 - d);
+    return (y === null ? p.y : y) - 17 + this.skinDy();
   }
 
   updateParts(dt) {
@@ -1075,6 +1079,7 @@ export class Game {
     this.drawCoins(ctx, camX);
     this.drawItems(ctx, camX);
     this.drawObstacles(ctx, camX);
+    if (p.alive && this.save.trail !== "none") drawRibbon(ctx, this.save.trail, Math.round(p.x - camX - 8), (d) => this.trailY(d), this.time, 1, this.trailIn || 0);
     for (const c of this.lostChicks) drawChick(ctx, c, camX, this.time);
     for (let i = this.chicks.length - 1; i >= 0; i--) drawChick(ctx, this.chicks[i], camX, this.time);
     if (p.alive) this.drawChicken(camX);
