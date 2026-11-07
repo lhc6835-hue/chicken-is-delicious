@@ -574,7 +574,7 @@ export class Game {
     sfx("jump", { vol: 0.4, rate: 1.3 + Math.min(chain, 6) * 0.1, vary: 0 });
     const cx = o.x + o.w / 2;
     this.fx.add("spark", cx, o.y - 2, { rot: Math.PI / 2 });
-    if (chain >= 2) this.fx.add("pow", cx, o.y - 16, { alpha: 0.9 });
+    if (chain >= 2) this.fx.add("thud", cx, o.y + 8);
     this.feathers(cx, o.y + 6, 12, ["#2a2438", "#4a4458", "#0a0810", "#6a6080"]);
     this.sparkle(cx, o.y, "#ffffff", 8, 150);
     this.hitstop = 0.06; this.addShake(3 + Math.min(chain, 4)); duck(0.55, 0.005, 0.07, 0.3);
@@ -589,7 +589,7 @@ export class Game {
     this.run.smash++;
     this.addScore(50);
     const cx = o.x + o.w / 2, cy = o.y - o.h / 2;
-    this.fx.add(Math.random() < 0.5 ? "pow" : "bam", cx + 10, cy - 6);
+    this.fx.add("thud", cx, o.y);
     this.fx.add("crit", cx - 20, o.y);
     sfx("smash", { vol: 0.9 });
     sfx(o.kind === "crate" || o.kind === "fence" ? "crate" : "metal", { vol: 0.7 });
@@ -644,7 +644,7 @@ export class Game {
     this.save.stats.deaths++;
     if (!fell) {
       sfx("hit", { vol: 1 }); sfx("die", { vol: 0.7, delay: 0.05 });
-      this.fx.add("pow", p.x + 8, p.y - 20);
+      this.fx.add("thud", p.x + 6, p.y);
       this.fx.add("feathers", p.x, p.y - 14);
       this.feathers(p.x, p.y, 20, ["#e4c0a3", "#f5ddca", "#95655a", "#ffffff"]);
       this.hitstop = 0.16; this.addShake(9); this.flash = 0.7; this.flashColor = "#ffffff"; this.slowmo = 0.3;
