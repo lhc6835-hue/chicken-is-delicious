@@ -77,6 +77,20 @@ export function coinSound(combo, fast, gem) {
   sfx("coin", { rate: rate * 0.9, vary: 0, vol: 0.3 });
 }
 
+/** A chick's peep: two quick rising sweeps when happy, one falling one when it's lost. */
+export function chirp(mood = "happy") {
+  if (!ac || muted) return;
+  const t = now();
+  const notes = mood === "happy" ? [[2300, 3300, 0], [2500, 3600, 0.09]] : [[2600, 1500, 0], [2100, 1200, 0.12]];
+  for (const [f0, f1, dt] of notes) {
+    const o = ac.createOscillator(); o.type = "triangle";
+    o.frequency.setValueAtTime(f0, t + dt); o.frequency.exponentialRampToValueAtTime(f1, t + dt + 0.07);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t + dt); g.gain.exponentialRampToValueAtTime(0.16, t + dt + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.085);
+    o.connect(g); g.connect(sfxGain); o.start(t + dt); o.stop(t + dt + 0.1);
+  }
+}
+
 /** A square-wave "ding-ding" through the effects bus, so volume, mute and muffling apply. */
 function chime(f1, f2, len) {
   if (!ac || muted) return;

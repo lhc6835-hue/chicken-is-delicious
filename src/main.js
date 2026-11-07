@@ -222,6 +222,8 @@ function showHelp() {
       <ul class="help">
         <li><b>스페이스 / 터치</b> : 점프. 길게 누를수록 높이 뛰어요.</li>
         <li><b>공중에서 꾹 누르기</b> : 날개를 퍼덕이며 천천히 활공해요 (머리 위 게이지).</li>
+        <li><b>🥚 작은 알</b> : 먹으면 병아리가 부화해서 뒤를 따라와요. 병아리 수만큼 점수 배율이 올라가요 (최대 ×16)!</li>
+        <li><b>병아리</b>는 닭이 뛴 자리에서 똑같이 뛰지만 점프가 낮고 활공을 못 해요. 아슬아슬하게 넘으면 병아리가 장애물에 부딪히거나 구덩이에 빠져요. 닭이 부딪히면 무조건 꼬꼬 다운!</li>
         <li><b>🚀 부스터</b> : 누르고 있으면 하늘로 날아올라요. 하늘 코인 길을 따라가요!</li>
         <li><b>⚡ 배속</b> : 엄청 빨라지고 장애물을 몽땅 부숴요. 점수 2배!</li>
         <li><b>🧲 자석</b> : 근처 코인을 끌어당겨요. <b>💗 방패</b> : 한 번 막아줘요.</li>
@@ -240,7 +242,7 @@ function showStats() {
   const rows = [
     ["최고 점수", save.best.toLocaleString()], ["최장 거리", `${save.bestDist}m`], ["플레이 횟수", st.runs], ["총 달린 거리", `${Math.floor(st.distTotal).toLocaleString()}m`],
     ["모은 코인", st.coinsTotal.toLocaleString()], ["점프", st.jumps], ["활공 시간", `${Math.floor(st.glide)}초`], ["부스터 사용", st.boosters],
-    ["배속 사용", st.speeds], ["부순 장애물", st.smash], ["밟은 까마귀", st.crows], ["깬 황금알", st.eggs], ["완료한 미션", st.missionsDone],
+    ["배속 사용", st.speeds], ["부순 장애물", st.smash], ["밟은 까마귀", st.crows], ["부화시킨 병아리", st.chicks || 0], ["잃은 병아리", st.chicksLost || 0], ["깬 황금알", st.eggs], ["완료한 미션", st.missionsDone],
   ];
   setScreen("stats", `
     <div class="panel wide">
@@ -535,7 +537,7 @@ function finishRun(r) {
     if (m.done) continue;
     const t = missionType(m);
     if (t.run) {
-      const v = { dist: r.dist, coins: r.coins, combo: r.combo }[m.key] || 0;
+      const v = { dist: r.dist, coins: r.coins, combo: r.combo, maxChicks: r.maxChicks }[m.key] || 0;
       m.progress = Math.max(m.progress || 0, v);
       if (m.progress >= m.goal) m.done = true;
     } else if ((st[m.key] || 0) - m.base >= m.goal) m.done = true;
@@ -566,6 +568,8 @@ function showOver() {
         <div><span>거리</span><b>${r.dist}m</b></div>
         <div><span>코인</span><b><i class="ic-coin"></i>+${r.coins}</b></div>
         <div><span>최대 콤보</span><b>${r.combo}</b></div>
+        <div><span>최대 병아리</span><b>🐤 ${r.maxChicks || 0}마리</b></div>
+        <div><span>잃은 병아리</span><b>${r.run.chicksLost || 0}마리</b></div>
         <div><span>최고 점수</span><b>${save.best.toLocaleString()}</b></div>
       </div>
       ${doneCount ? `<div class="mdone">🎯 완료한 미션 ${doneCount}개! 미션 화면에서 보상을 받으세요</div>` : ""}

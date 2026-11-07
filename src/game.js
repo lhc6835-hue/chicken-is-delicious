@@ -4,7 +4,8 @@
 import { W, H, drawBackground, groundTiles, biomeAt, BIOME_LEN } from "./bg.js";
 import { drawChicken, getProps, SKINS } from "./sprites.js";
 import { FxLayer, drawFxFrame } from "./fx.js";
-import { sfx, coinSound, jetLoop, setBgmRate, tapeStop, muffle, duck, windLoop, resetMix } from "./audio.js";
+import { sfx, coinSound, jetLoop, setBgmRate, tapeStop, muffle, duck, windLoop, resetMix, chirp } from "./audio.js";
+import { CHICK, drawChick, drawChickEgg, chickIcon } from "./chicks.js";
 import { upgradeValue } from "./data.js";
 
 const GROUND = 232;
@@ -68,6 +69,7 @@ export class Game {
     };
     this.glideMax = upgradeValue(s, "glide");
     this.solids = []; this.obs = []; this.coins = []; this.items = []; this.springs = [];
+    this.chicks = []; this.lostChicks = []; this.jumpLog = []; this.path = []; this.carryPending = false; this.maxChicks = 0;
     this.parts = []; this.pops = []; this.ghosts = [];
     this.fx.clear(); this.sfx2.clear();
     this.genX = -200;
@@ -75,7 +77,7 @@ export class Game {
     this.camX = -PX; this.camY = 0; this.camOff = PX;
     this.shake = 0; this.flash = 0; this.flashColor = "#fff"; this.hitstop = 0; this.slowmo = 1; this.zoom = 1;
     this.dist = 0; this.score = 0; this.coinCount = 0; this.combo = 0; this.comboT = 0; this.maxCombo = 0;
-    this.run = { boosters: 0, speeds: 0, smash: 0, glide: 0, jumps: 0, gems: 0, springs: 0, eggs: 0, crows: 0 };
+    this.run = { boosters: 0, speeds: 0, smash: 0, glide: 0, jumps: 0, gems: 0, springs: 0, eggs: 0, crows: 0, chicks: 0, chicksLost: 0 };
     this.nextSpeedUp = 500;
     this.lastBiome = 0;
     this.revived = false;
@@ -108,14 +110,32 @@ export class Game {
     this.solids.push(s);
     return s;
   }
-  coinLine(x, y, n, gap = 18) { for (let i = 0; i < n; i++) this.coins.push({ x: x + i * gap, y, kind: "coin", ph: Math.random() * 3 }); }
+  coinLine(x, y, n, gap = 18) {
+    const k = this.coins.length;
+    for (let i = 0; i < n; i++) this.coins.push({ x: x + i * gap, y, kind: "coin", ph: Math.random() * 3 });
+    this.maybeChickEgg(k);
+  }
   coinArc(x, y, w, h, n) {
+    const k = this.coins.length;
     for (let i = 0; i < n; i++) {
       const t = n === 1 ? 0.5 : i / (n - 1);
       this.coins.push({ x: x + t * w, y: y - Math.sin(t * Math.PI) * h, kind: "coin", ph: i * 0.2 });
     }
+    this.maybeChickEgg(k);
+  }
+  /** Now and then the middle coin of a pattern is an egg with a chick in it. */
+  maybeChickEgg(from) {
+    const n = this.coins.length - from;
+    if (n < 3 || this.dist < 15) return;
+    const room = CHICK.max - this.chicks.length;
+    if (Math.random() > (room > 0 ? 0.3 + room * 0.017 : 0.06)) return;
+    const c = this.coins[from + (n >> 1)];
+    c.kind = "chick"; c.ph = Math.random() * 6;
   }
   addItem(x, y, kind) { this.items.push({ x, y, kind, ph: Math.random() * 6 }); this.lastItemX = x; }
+
+  get mult() { return 1 + this.chicks.length; }
+  addScore(n) { this.score += n * this.mult; }
 
   get speedBase() { return Math.min(205 + this.dist * 0.055, 400); }
   get worldSpeed() {
@@ -278,6 +298,8 @@ export class Game {
   release() {
     const p = this.p;
     p.holding = false;
+    const j = this.jumpLog[this.jumpLog.length - 1];
+    if (j && j.hold === null) j.hold = Math.min(HOLD_T, p.holdT);
     if (this.state !== "run") return;
     if (p.booster <= 0 && p.vy < -200) p.vy *= 0.5;
   }
@@ -286,6 +308,7 @@ export class Game {
     const p = this.p;
     p.vy = -JUMP_V * power;
     p.ground = null; p.coyote = 0; p.buffer = 0; p.holdT = 0;
+    this.jumpLog.push({ x: p.x, hold: null });
     p.glideLeft = this.glideMax;
     p.sx = 0.75; p.sy = 1.3;
     this.run.jumps++;
@@ -464,11 +487,14 @@ export class Game {
       }
     }
     this.collide();
+    this.stepChicks(dt);
   }
 
   land(s, vy) {
     const p = this.p;
     p.y = s.y; p.vy = 0; p.ground = s; p.gliding = false; p.stompChain = 0;
+    // the first landing after a booster or speed run: chicks ride the path up to here, then run on their own
+    if (this.carryPending && p.booster <= 0 && p.speed <= 0) { this.carryPending = false; for (const c of this.chicks) c.safeUntil = p.x; }
     p.glideLeft = this.glideMax;
     if (vy > 380) {
       p.sx = 1.35; p.sy = 0.7;
@@ -552,7 +578,7 @@ export class Game {
     this.feathers(cx, o.y + 6, 12, ["#2a2438", "#4a4458", "#0a0810", "#6a6080"]);
     this.sparkle(cx, o.y, "#ffffff", 8, 150);
     this.hitstop = 0.06; this.addShake(3 + Math.min(chain, 4)); duck(0.55, 0.005, 0.07, 0.3);
-    this.score += pts;
+    this.addScore(pts);
     this.worldText(o.x, o.y - 12, chain >= 2 ? `+${pts} ${chain}연속 꾹!` : `+${pts} 꾹!`, chain >= 2 ? "#ff86e6" : "#fff07a");
     if (chain >= 2) sfx("combo", { vol: 0.5, rate: 0.9 + chain * 0.08, vary: 0 });
     for (let i = 0; i < 2 + Math.min(chain, 4); i++) this.coins.push({ x: o.x + 30 + i * 16, y: o.y - 20, kind: "coin", ph: i, mag: true });
@@ -561,7 +587,7 @@ export class Game {
   smash(o, quiet) {
     o.dead = true; o.flyVx = rnd(260, 380); o.flyVy = rnd(-420, -260); o.spin = 0;
     this.run.smash++;
-    this.score += 50;
+    this.addScore(50);
     const cx = o.x + o.w / 2, cy = o.y - o.h / 2;
     this.fx.add(Math.random() < 0.5 ? "pow" : "bam", cx + 10, cy - 6);
     this.fx.add("crit", cx - 20, o.y);
@@ -579,14 +605,15 @@ export class Game {
     this.comboT = 1.0;
     this.maxCombo = Math.max(this.maxCombo, this.combo);
     const mult = this.p.speed > 0 ? 2 : 1;
+    if (c.kind === "chick") { this.hatchChick(c); return; }
     if (c.kind === "gem") {
-      this.coinCount += 5 * this.coinMult; this.score += 50 * mult; this.run.gems++;
+      this.coinCount += 5 * this.coinMult; this.addScore(50 * mult); this.run.gems++;
       this.fx.add("gemBurst", c.x, c.y + 20);
       sfx("gem", { vol: 0.55 });
       coinSound(Math.min(this.combo - 1, 14), this.p.speed > 0, true);
       this.worldText(c.x, c.y - 12, "+5", "#ff86e6");
     } else {
-      this.coinCount += 1 * this.coinMult; this.score += 10 * mult;
+      this.coinCount += 1 * this.coinMult; this.addScore(10 * mult);
       coinSound(Math.min(this.combo - 1, 14), this.p.speed > 0);
       if (this.combo % 5 === 0) this.fx.add("coinBurst", c.x, c.y + 20, { alpha: 0.9 });
     }
@@ -596,13 +623,17 @@ export class Game {
       this.sfx2.add(milestones[this.combo], W / 2, 64);
       sfx("combo", { vol: 0.8 });
       this.flash = 0.25; this.flashColor = "#ffd2f6";
-      this.score += this.combo * 10;
+      this.addScore(this.combo * 10);
     }
   }
 
   die(fell, o) {
     const p = this.p;
     if (!p.alive) return;
+    // the chicks scatter
+    if (this.chicks.length) chirp("sad");
+    for (const c of this.chicks) { c.lost = true; c.lostT = 0; c.spin = 0; c.vy = rnd(-380, -160); c.vx = rnd(-120, 60); this.lostChicks.push(c); }
+    this.chicks = [];
     p.alive = false;
     this.deathPos = { x: Math.round(p.x - this.camX), y: Math.round(Math.max(30, Math.min(H - 30, p.y - 18))) };
     jetLoop(false);
@@ -743,20 +774,24 @@ export class Game {
         this.nextSpeedUp += 500;
         this.sfx2.add("speedUp", W / 2, 150, { clip: 62 });
         sfx("levelup", { vol: 0.7 });
-        this.score += 500;
+        this.addScore(500);
       }
       const bm = biomeAt(this.dist);
       if (bm.index !== this.lastBiome) { this.lastBiome = bm.index; this.banner = { text: bm.name, t: 0 }; }
-      this.score += this.worldSpeed * dt * 0.05 * (p.speed > 0 ? 2 : 1);
+      this.addScore(this.worldSpeed * dt * 0.05 * (p.speed > 0 ? 2 : 1));
       this.checkMissions();
     }
+    for (const c of this.lostChicks) { c.lostT += dt; c.vy += 1100 * dt; c.x += (c.vx || 0) * dt; c.y += c.vy * dt; c.spin += 9 * dt; }
+    this.lostChicks = this.lostChicks.filter((c) => c.lostT < 1 && c.y < H + 40);
+    this.chickBump = Math.max(0, (this.chickBump || 0) - dt * 4);
     this.ghosts.forEach((g) => (g.t += dt));
     this.ghosts = this.ghosts.filter((g) => g.t < 0.25);
     this.speedLines.forEach((l) => (l.x -= l.v * dt));
     this.speedLines = this.speedLines.filter((l) => l.x + l.len > 0);
 
     // camera
-    const want = p.speed > 0 ? 150 : PX;
+    // the camera makes room for the train behind the chicken
+    const want = (p.speed > 0 ? 150 : PX) + Math.min(this.chicks.length, CHICK.max) * 6;
     this.camOff += (want - this.camOff) * Math.min(1, dt * 3);
     if (p.alive) this.camX = p.x - this.camOff;
     this.shake *= Math.pow(0.0005, dt);
@@ -789,6 +824,138 @@ export class Game {
   warnBeep(kind, left, dt) {
     // three rising beeps over the last second
     for (const t of [1, 0.66, 0.33]) if (left > t && left - dt <= t) sfx("warn", { vol: 0.5, rate: 2.2 - t, vary: 0 });
+  }
+
+  // ---------------------------------------------------------------- the chick train
+  hatchChick(egg) {
+    const p = this.p;
+    sfx("egg", { vol: 0.8, rate: 1.2 });
+    this.sparkle(egg.x, egg.y, "#fff4dc", 10, 140);
+    for (let i = 0; i < 6; i++) this.part({ x: egg.x, y: egg.y, vx: rnd(-90, 90), vy: rnd(-200, -60), g: 900, size: 2, life: 0.5, color: pick(["#fff4dc", "#e2d4b2"]), spin: true });
+    if (this.chicks.length >= CHICK.max) {
+      this.addScore(100); this.coinCount += 5 * this.coinMult;
+      this.worldText(egg.x, egg.y - 12, "병아리 꽉 찼다! +5코인", "#ffd84a");
+      chirp("happy");
+      return;
+    }
+    const n = this.chicks.length;
+    // it hatches behind the line and runs to catch up, riding the chicken's path until it's past
+    // the spot the egg was picked up
+    this.chicks.push({ x: p.x - (n + 1) * CHICK.gap - 30, y: p.y, vy: 0, ground: null, coyote: 0, off: (n + 1) * CHICK.gap + 30,
+      safeUntil: p.x + 2, lastJumpX: -1e9, jump: null, ht: 0, ph: Math.random() * 4, sq: 0, flash: 0.25 });
+    this.run.chicks++;
+    this.maxChicks = Math.max(this.maxChicks, this.chicks.length);
+    this.chickBump = 1;
+    chirp("happy");
+    this.worldText(egg.x, egg.y - 14, `삐약! ×${this.mult}`, "#ffd84a");
+    if (this.save.stats.chicks === 0 && this.run.chicks === 1) this.popText("병아리는 점프만 따라 해요. 활공은 못 해요!", "#fff4dc");
+    else if (this.chicks.length === 5 || this.chicks.length === 10 || this.chicks.length === CHICK.max) {
+      this.popText(`병아리 ${this.chicks.length}마리! 점수 ×${this.mult}`, "#ffd84a", 1);
+      sfx("combo", { vol: 0.6 });
+    }
+  }
+
+  pathY(x) {
+    const P = this.path;
+    if (!P.length || x < P[0].x) return null;
+    let lo = 0, hi = P.length - 1;
+    if (x >= P[hi].x) return P[hi].y;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (P[m].x <= x) lo = m; else hi = m; }
+    const a = P[lo], b = P[hi], t = (x - a.x) / ((b.x - a.x) || 1);
+    return a.y + (b.y - a.y) * t;
+  }
+
+  stepChicks(dt) {
+    const p = this.p, C = CHICK;
+    if (!p.alive) return;
+    this.path.push({ x: p.x, y: p.y });
+    const keep = p.x - (C.max + 3) * C.gap - 80;
+    while (this.path.length > 2 && this.path[1].x < keep) this.path.shift();
+    while (this.jumpLog.length && this.jumpLog[0].x < keep) this.jumpLog.shift();
+    if (p.booster > 0 || p.speed > 0) { this.carryPending = true; for (const c of this.chicks) c.safeUntil = Infinity; }
+    for (let i = 0; i < this.chicks.length; i++) {
+      const c = this.chicks[i];
+      c.off += ((i + 1) * C.gap - c.off) * Math.min(1, dt * 5);
+      const nx = p.x - c.off, prevY = c.y;
+      c.x = nx;
+      c.flash -= dt;
+      c.sq += (0 - c.sq) * Math.min(1, dt * 10);
+      if (nx < c.safeUntil) {
+        // riding the chicken's path: safe, and any jumps along it are already done
+        const y = this.pathY(nx);
+        if (y !== null) { c.vy = clamp((y - c.y) / dt, -900, 900); c.y = y; }
+        c.ground = this.solids.find((s) => !s.falling && c.x > s.x - 4 && c.x < s.x + s.w + 4 && Math.abs(c.y - s.y) < 1.5) || null;
+        c.lastJumpX = Math.max(c.lastJumpX, nx);
+        c.jump = null;
+        continue;
+      }
+      // replay the chicken's take-offs at the same spot (a chick gets a little coyote time too)
+      let j = null;
+      for (const q of this.jumpLog) if (q.x > c.lastJumpX && q.x <= c.x) j = q;
+      if (j) {
+        if (c.ground || c.coyote > 0) {
+          c.vy = -JUMP_V * C.jumpPow; c.ground = null; c.coyote = 0; c.jump = j; c.ht = 0; c.cut = false; c.lastJumpX = j.x; c.sq = -0.6;
+        } else if (c.x - j.x > 30) c.lastJumpX = j.x;
+      }
+      if (c.ground) {
+        const s = c.ground;
+        if (c.x + 4 < s.x || c.x - 4 > s.x + s.w || s.falling) { c.ground = null; c.coyote = 0.09; }
+        else c.y = s.y;
+      }
+      if (!c.ground) {
+        let g = C.grav;
+        const hold = c.jump ? (c.jump.hold ?? (p.holding ? C.holdT : p.holdT)) : 0;
+        if (c.vy < 0 && c.ht < hold) { g *= C.holdK; c.ht += dt; }
+        // a short tap cut the chicken's rise in half when the button came up: the chick copies that too
+        else if (c.jump && c.jump.hold !== null && !c.cut && c.jump.hold < C.holdT) { c.cut = true; if (c.vy < -200 * C.jumpPow) c.vy *= 0.5; }
+        c.vy = Math.min(c.vy + g * dt, C.maxFall);   // no gliding for chicks
+        c.y += c.vy * dt;
+        if (c.coyote > 0) c.coyote -= dt;
+        if (c.vy >= 0) {
+          for (const s of this.solids) {
+            if (s.falling || c.x + 4 < s.x || c.x - 4 > s.x + s.w) continue;
+            if (prevY <= s.y + 2 + Math.max(0, s.dy) && c.y >= s.y - 0.5) {
+              if (c.vy > 260) c.sq = 0.6;
+              c.y = s.y; c.vy = 0; c.ground = s; c.jump = null;
+              break;
+            }
+          }
+        }
+      }
+      for (const sp of this.springs) {
+        if (c.x + 5 > sp.x && c.x - 5 < sp.x + sp.w && c.y >= sp.y - 10 && c.y <= sp.y + 2 && c.vy >= 0) {
+          c.ground = null; c.vy = -720 * 0.95; c.jump = null; sp.t = 0.3;
+          sfx("spring", { vol: 0.25, rate: 1.6 });
+        }
+      }
+      // hazards: anything a chick runs into, or a pit, takes it
+      const bx0 = c.x - 6, bx1 = c.x + 6, by0 = c.y - 12, by1 = c.y;
+      let hit = false;
+      for (const o of this.obs) {
+        if (o.dead) continue;
+        const oy = o.kind === "crow" ? o.y - o.h / 2 : o.y - o.h;
+        const pad = o.kind === "thorns" ? 3 : 2;
+        if (bx1 < o.x + pad || bx0 > o.x + o.w - pad || by1 < oy + pad || by0 > oy + o.h) continue;
+        hit = true; break;
+      }
+      if (hit) this.loseChick(c, "hit");
+      else if (c.y > H + 10) this.loseChick(c, "fall");
+    }
+    if (this.chicks.some((c) => c.lost)) this.chicks = this.chicks.filter((c) => !c.lost);
+  }
+
+  loseChick(c, why) {
+    c.lost = true; c.lostT = 0; c.spin = 0;
+    if (why === "hit") { c.vy = -300; c.vx = -90; } else { c.vy = 60; c.vx = 0; }
+    this.lostChicks.push(c);
+    this.run.chicksLost++;
+    chirp("sad");
+    sfx(why === "hit" ? "hit" : "fall", { vol: 0.4, rate: 1.6 });
+    this.feathers(c.x, c.y - 6, 6, ["#ffd84a", "#fff3a6", "#e0a020"]);
+    if (why === "fall") for (let i = 0; i < 6; i++) this.part({ x: c.x, y: GROUND + 28, vx: rnd(-60, 60), vy: rnd(-160, -60), g: 700, size: 2, life: 0.5, color: pick(["#8ae8ff", "#ffffff", "#2582d2"]) });
+    this.worldText(c.x, Math.min(c.y, GROUND) - 18, "삐약…", "#c8d8ff");
+    this.addShake(2);
+    this.chickBump = 0.6;
   }
 
   skinFeathers() {
@@ -844,14 +1011,14 @@ export class Game {
     }
   }
   missionProgress(m) {
-    const runVal = { dist: Math.floor(this.dist), coins: this.coinCount, combo: this.maxCombo, coinsTotal: this.coinCount, ...this.run }[m.key] || 0;
-    const t = { dist: 1, coins: 1, combo: 1 }[m.key];
+    const runVal = { dist: Math.floor(this.dist), coins: this.coinCount, combo: this.maxCombo, coinsTotal: this.coinCount, maxChicks: this.maxChicks, ...this.run }[m.key] || 0;
+    const t = { dist: 1, coins: 1, combo: 1, maxChicks: 1 }[m.key];
     if (t) return Math.max(m.progress || 0, runVal);
     return (this.save.stats[m.key] || 0) + runVal - m.base;
   }
 
   result() {
-    return { score: Math.floor(this.score), dist: Math.floor(this.dist), coins: this.coinCount, combo: this.maxCombo, run: { ...this.run }, revived: this.revived };
+    return { score: Math.floor(this.score), dist: Math.floor(this.dist), coins: this.coinCount, combo: this.maxCombo, maxChicks: this.maxChicks, run: { ...this.run }, revived: this.revived };
   }
 
   // ---------------------------------------------------------------- draw
@@ -879,6 +1046,8 @@ export class Game {
     this.drawCoins(ctx, camX);
     this.drawItems(ctx, camX);
     this.drawObstacles(ctx, camX);
+    for (const c of this.lostChicks) drawChick(ctx, c, camX, this.time);
+    for (let i = this.chicks.length - 1; i >= 0; i--) drawChick(ctx, this.chicks[i], camX, this.time);
     if (p.alive) this.drawChicken(camX);
     this.fx.draw(ctx, camX, 0);
     this.drawPartsLayer(ctx, camX, "front");
@@ -956,6 +1125,7 @@ export class Game {
       const x = c.x - camX;
       if (x < -20 || x > W + 20) continue;
       const f = Math.floor(this.time * 20 + c.ph * 10);
+      if (c.kind === "chick") { drawChickEgg(ctx, c, camX, this.time); continue; }
       drawFxFrame(ctx, c.kind === "gem" ? "gem" : "coin", f, x, c.y, { center: true, clip: 7, lightK: 0.7 });
     }
   }
@@ -1128,6 +1298,11 @@ export class Game {
     };
     txt(`${Math.floor(this.dist)}m`, 10, 18, "#ffffff", 16);
     txt(`점수 ${Math.floor(this.score).toLocaleString()}`, 10, 34, "#fff3a6", 12);
+    if (this.chicks.length) {
+      const ic = chickIcon(), bump = this.chickBump > 0 ? 1 + this.chickBump * 0.6 : 1;
+      ctx.drawImage(ic, 10, 40, ic.width * 2, ic.height * 2);
+      txt(`×${this.mult}`, 32, 55, this.chicks.length >= 10 ? "#ff86e6" : "#ffd84a", Math.round(14 * bump));
+    }
     drawFxFrame(ctx, "coin", Math.floor(this.time * 20), W - 90, 17, { center: true, clip: 7, lightK: 0.5 });
     txt(`${this.coinCount}`, W - 78, 22, "#ffde5e", 14);
     if (this.coinMult > 1) txt("x2", W - 78, 36, "#ff86e6", 10);
