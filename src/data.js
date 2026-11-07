@@ -1,18 +1,18 @@
 // Shop upgrades, consumables, missions and the save file.
 export const UPGRADES = [
-  { id: "booster", name: "부스터 연료통", desc: "부스터 지속시간 +0.8초", icon: "🚀", base: 5, per: 0.8 },
-  { id: "speed", name: "터보 깃털", desc: "배속 지속시간 +0.8초", icon: "⚡", base: 5, per: 0.8 },
-  { id: "magnet", name: "강력 자석", desc: "자석 지속시간 +1.5초", icon: "🧲", base: 7, per: 1.5 },
-  { id: "glide", name: "넓은 날개", desc: "활공 시간 +0.25초", icon: "🪶", base: 1.1, per: 0.25 },
-  { id: "luck", name: "행운의 모이", desc: "아이템 등장 확률 +12%", icon: "🍀", base: 1, per: 0.12 },
+  { id: "booster", name: "부스터 연료통", desc: "부스터 지속시간 +0.8초", icon: "rocket", base: 5, per: 0.8 },
+  { id: "speed", name: "터보 깃털", desc: "배속 지속시간 +0.8초", icon: "bolt", base: 5, per: 0.8 },
+  { id: "magnet", name: "강력 자석", desc: "자석 지속시간 +1.5초", icon: "magnet", base: 7, per: 1.5 },
+  { id: "glide", name: "넓은 날개", desc: "활공 시간 +0.25초", icon: "feather", base: 1.1, per: 0.25 },
+  { id: "luck", name: "행운의 모이", desc: "아이템 등장 확률 +12%", icon: "clover", base: 1, per: 0.12 },
 ];
 export const UPGRADE_COST = [120, 300, 600, 1000, 1600];
 export const MAX_LV = UPGRADE_COST.length;
 
 export const CONSUMABLES = [
-  { id: "startShield", name: "시작 방패", desc: "방패를 들고 출발 (1회)", icon: "🛡️", price: 150 },
-  { id: "startBoost", name: "로켓 스타트", desc: "부스터를 켜고 출발 (1회)", icon: "🔥", price: 200 },
-  { id: "doubleCoin", name: "코인 2배 쿠폰", desc: "다음 판 코인 2배 (1회)", icon: "💰", price: 350 },
+  { id: "startShield", name: "시작 방패", desc: "방패를 들고 출발 (1회)", icon: "shield", price: 150 },
+  { id: "startBoost", name: "로켓 스타트", desc: "부스터를 켜고 출발 (1회)", icon: "flame", price: 200 },
+  { id: "doubleCoin", name: "코인 2배 쿠폰", desc: "다음 판 코인 2배 (1회)", icon: "money", price: 350 },
 ];
 
 export const GACHA_PRICE = 300;

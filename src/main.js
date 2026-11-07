@@ -2,6 +2,7 @@ import { Game } from "./game.js";
 import { W, H } from "./bg.js";
 import { loadFx, drawFxFrame } from "./fx.js";
 import { Transitions } from "./transition.js";
+import { iconHtml as I, drawIcon, TRAIL_ICON } from "./icons.js";
 import { initAudio, sfx, playBgm, setVolumes, setMuted, duckBgm, jetLoop, muffle, resetMix, windLoop, duck } from "./audio.js";
 import { SKINS, HATS, TRAILS, drawChicken } from "./sprites.js";
 import {
@@ -28,7 +29,7 @@ const game = new Game(canvas, save, {
   onGameOver(r) {
     trans.run("iris", () => finishRun(r), game.deathPos || {});
   },
-  onMission(m) { toast(`🎯 미션 완료! ${missionText(m)}`); },
+  onMission(m) { toast(`${I("flag")} 미션 완료! ${missionText(m)}`); },
   onHud() {},
 });
 
@@ -87,11 +88,11 @@ ui.addEventListener("click", (e) => { if (e.target.closest("button")) initAudio(
 
 // ---------------------------------------------------------------- helpers
 function persist() { writeSave(save); }
-function coinsHtml() { return `<span class="coinpill"><i class="ic-coin"></i>${save.coins.toLocaleString()}</span>`; }
+function coinsHtml() { return `<span class="coinpill">${I("coin")}${save.coins.toLocaleString()}</span>`; }
 function toast(text) {
   const t = document.createElement("div");
   t.className = "toast";
-  t.textContent = text;
+  t.innerHTML = text;
   $("#toasts").appendChild(t);
   setTimeout(() => t.remove(), 2600);
 }
@@ -118,8 +119,7 @@ function drawPreview() {
   c.fillRect(previewCv.width / 2 - 20, previewCv.height - 10, 40, 4);
   drawChicken(c, "run", Math.floor(t * 9) % 4, previewCv.dataset.skin || save.skin, previewCv.dataset.hat || save.hat, previewCv.width / 2, previewCv.height - 8, { scale: 3, phase: Math.floor(t * 8) });
   if (trail && trail !== "none" && trail !== "dust") {
-    c.font = "14px sans-serif";
-    c.fillText({ hearts: "💗", stars: "⭐", notes: "🎵", fire: "🔥", rainbow: "🌈" }[trail] || "", 6, 22);
+    drawIcon(c, TRAIL_ICON[trail], 12, 12, 1);
   }
 }
 
@@ -144,23 +144,23 @@ function showTitle() {
   setScreen("title", `
     <div class="title-top">${coinsHtml()}<span class="best">최고 ${save.best.toLocaleString()}점 · ${save.bestDist}m</span></div>
     <div class="logo">
-      <div class="logo-kicker">★ A CHICKEN'S GREAT ESCAPE ★</div>
+      <div class="logo-kicker">${I("star")} A CHICKEN'S GREAT ESCAPE ${I("star")}</div>
       <div class="wm wm-free">${letters("FREE")}</div>
       <div class="wm wm-range">${letters("RANGE")}</div>
       <div class="logo-tag">DON'T BECOME DINNER.</div>
     </div>
     <canvas class="preview" width="96" height="84"></canvas>
     <div class="menu">
-      ${btn("▶ 시작하기", "big primary", 'data-act="play"')}
+      ${btn(`${I("play")} 시작하기`, "big primary", 'data-act="play"')}
       <div class="row">
-        ${btn("🛒 상점", "", 'data-act="shop"')}
-        ${btn(`🎯 미션${unclaimed ? `<b class="dot">${unclaimed}</b>` : ""}`, "", 'data-act="missions"')}
-        ${btn("🥚 뽑기", "", 'data-act="gacha"')}
+        ${btn(`${I("basket")} 상점`, "", 'data-act="shop"')}
+        ${btn(`${I("flag")} 미션${unclaimed ? `<b class="dot">${unclaimed}</b>` : ""}`, "", 'data-act="missions"')}
+        ${btn(`${I("egg")} 뽑기`, "", 'data-act="gacha"')}
       </div>
       <div class="row">
-        ${btn("📊 기록", "small", 'data-act="stats"')}
-        ${btn("⚙ 설정", "small", 'data-act="settings"')}
-        ${btn("❓ 방법", "small", 'data-act="help"')}
+        ${btn(`${I("chart")} 기록`, "small", 'data-act="stats"')}
+        ${btn(`${I("gear")} 설정`, "small", 'data-act="settings"')}
+        ${btn(`${I("help")} 방법`, "small", 'data-act="help"')}
       </div>
     </div>
     <div class="hint">스페이스 / 화면 터치로 시작</div>
@@ -187,7 +187,7 @@ function checkDaily() {
   const reward = DAILY_REWARDS[(streak - 1) % DAILY_REWARDS.length];
   const days = DAILY_REWARDS.map((r, i) => `<div class="day ${i < ((streak - 1) % 7) ? "got" : i === (streak - 1) % 7 ? "now" : ""}"><small>${i + 1}일</small><b>${r}</b></div>`).join("");
   modal(`
-    <h2>🌞 출석 보상</h2>
+    <h2>${I("sun", 2)} 출석 보상</h2>
     <p>${streak}일 연속 출석!</p>
     <div class="days">${days}</div>
     ${btn(`코인 ${reward}개 받기`, "primary", 'data-act="claim"')}
@@ -218,16 +218,16 @@ function closeModal() { const m = $(".modal", ui); if (m) m.remove(); }
 function showHelp() {
   setScreen("help", `
     <div class="panel wide">
-      <h2>❓ 플레이 방법</h2>
+      <h2>${I("help", 2)} 플레이 방법</h2>
       <ul class="help">
         <li><b>스페이스 / 터치</b> : 점프. 길게 누를수록 높이 뛰어요.</li>
         <li><b>공중에서 꾹 누르기</b> : 날개를 퍼덕이며 천천히 활공해요 (머리 위 게이지).</li>
-        <li><b>🥚 작은 알</b> : 먹으면 병아리가 부화해서 뒤를 따라와요. 병아리 수만큼 점수 배율이 올라가요 (최대 ×16)!</li>
+        <li>${I("chick")} <b>작은 알</b> : 먹으면 병아리가 부화해서 뒤를 따라와요. 병아리 수만큼 점수 배율이 올라가요 (최대 ×16)!</li>
         <li><b>병아리</b>는 닭이 뛴 자리에서 똑같이 뛰지만 점프가 낮고 활공을 못 해요. 아슬아슬하게 넘으면 병아리가 장애물에 부딪히거나 구덩이에 빠져요. 닭이 부딪히면 무조건 꼬꼬 다운!</li>
-        <li><b>🚀 부스터</b> : 누르고 있으면 하늘로 날아올라요. 하늘 코인 길을 따라가요!</li>
-        <li><b>⚡ 배속</b> : 엄청 빨라지고 장애물을 몽땅 부숴요. 점수 2배!</li>
-        <li><b>🧲 자석</b> : 근처 코인을 끌어당겨요. <b>💗 방패</b> : 한 번 막아줘요.</li>
-        <li><b>🥚 황금알</b> : 코인 폭탄! &nbsp; <b>스프링</b> : 엄청 높이 튕겨요.</li>
+        <li>${I("rocket")} <b>부스터</b> : 누르고 있으면 하늘로 날아올라요. 하늘 코인 길을 따라가요!</li>
+        <li>${I("bolt")} <b>배속</b> : 엄청 빨라지고 장애물을 몽땅 부숴요. 점수 2배!</li>
+        <li>${I("magnet")} <b>자석</b> : 근처 코인을 끌어당겨요. ${I("heart")} <b>방패</b> : 한 번 막아줘요.</li>
+        <li>${I("egg")} <b>황금알</b> : 코인 폭탄! &nbsp; <b>스프링</b> : 엄청 높이 튕겨요.</li>
         <li><b>까마귀</b>는 위에서 밟으면 보너스! &nbsp; <b>회색 돌 발판</b>은 금방 무너져요.</li>
         <li>코인을 끊기지 않게 먹으면 <b>콤보</b>가 쌓이고 소리가 점점 올라가요.</li>
         <li>P / ESC : 일시정지</li>
@@ -246,7 +246,7 @@ function showStats() {
   ];
   setScreen("stats", `
     <div class="panel wide">
-      <h2>📊 기록</h2>
+      <h2>${I("chart", 2)} 기록</h2>
       <div class="stats">${rows.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("")}</div>
       ${btn("돌아가기", "", 'data-act="back"')}
     </div>
@@ -257,7 +257,7 @@ function showSettings() {
   const s = save.settings;
   setScreen("settings", `
     <div class="panel">
-      <h2>⚙ 설정</h2>
+      <h2>${I("gear", 2)} 설정</h2>
       <label class="set">효과음 <input type="range" min="0" max="1" step="0.05" value="${s.sfx}" data-k="sfx"></label>
       <label class="set">배경음악 <input type="range" min="0" max="1" step="0.05" value="${s.bgm}" data-k="bgm"></label>
       <label class="set">화면 흔들림 ${btn(s.shake ? "켜짐" : "꺼짐", "small", 'data-act="shake"')}</label>
@@ -292,14 +292,14 @@ function showSettings() {
 
 // ---------------------------------------------------------------- shop
 function showShop(tab = "skin") {
-  const tabs = [["skin", "🐔 스킨"], ["hat", "🎩 모자"], ["trail", "✨ 트레일"], ["up", "⬆ 강화"], ["item", "🎒 아이템"]];
+  const tabs = [["skin", `${I("chicken")} 스킨`], ["hat", `${I("hat")} 모자`], ["trail", `${I("sparkle")} 트레일`], ["up", `${I("up")} 강화`], ["item", `${I("bag")} 아이템`]];
   let list = "";
   if (tab === "skin" || tab === "hat" || tab === "trail") {
     const arr = tab === "skin" ? SKINS : tab === "hat" ? HATS : TRAILS;
     list = arr.map((it) => {
       const owned = save.owned[tab].includes(it.id);
       const eq = save[tab] === it.id;
-      const label = eq ? "착용중" : owned ? "착용" : `<i class="ic-coin"></i>${it.price}`;
+      const label = eq ? "착용중" : owned ? "착용" : `${I("coin")}${it.price}`;
       return `<div class="card ${eq ? "eq" : ""} ${owned ? "" : "locked"}" data-act="hover" data-id="${it.id}">
         <canvas class="thumb" width="40" height="40" data-tab="${tab}" data-id="${it.id}"></canvas>
         <div class="nm">${it.name}</div>
@@ -310,16 +310,16 @@ function showShop(tab = "skin") {
     list = UPGRADES.map((u) => {
       const lv = save.up[u.id] || 0, max = lv >= MAX_LV;
       const pips = Array.from({ length: MAX_LV }, (_, i) => `<i class="${i < lv ? "on" : ""}"></i>`).join("");
-      return `<div class="card up"><div class="big-ic">${u.icon}</div><div class="nm">${u.name}</div><div class="desc">${u.desc}</div><div class="pips">${pips}</div>
-        ${btn(max ? "MAX" : `<i class="ic-coin"></i>${UPGRADE_COST[lv]}`, max ? "small on" : "small buy", `data-act="up" data-id="${u.id}" ${max ? "disabled" : ""}`)}</div>`;
+      return `<div class="card up"><div class="big-ic">${I(u.icon, 2)}</div><div class="nm">${u.name}</div><div class="desc">${u.desc}</div><div class="pips">${pips}</div>
+        ${btn(max ? "MAX" : `${I("coin")}${UPGRADE_COST[lv]}`, max ? "small on" : "small buy", `data-act="up" data-id="${u.id}" ${max ? "disabled" : ""}`)}</div>`;
     }).join("");
   } else {
-    list = CONSUMABLES.map((c) => `<div class="card up"><div class="big-ic">${c.icon}</div><div class="nm">${c.name}</div><div class="desc">${c.desc}</div><div class="desc">보유: ${save.items[c.id] || 0}</div>
-      ${btn(`<i class="ic-coin"></i>${c.price}`, "small buy", `data-act="item" data-id="${c.id}"`)}</div>`).join("");
+    list = CONSUMABLES.map((c) => `<div class="card up"><div class="big-ic">${I(c.icon, 2)}</div><div class="nm">${c.name}</div><div class="desc">${c.desc}</div><div class="desc">보유: ${save.items[c.id] || 0}</div>
+      ${btn(`${I("coin")}${c.price}`, "small buy", `data-act="item" data-id="${c.id}"`)}</div>`).join("");
   }
   setScreen("shop", `
     <div class="shop">
-      <div class="shop-head"><h2>🛒 상점</h2>${coinsHtml()}${btn("✕", "small", 'data-act="back"')}</div>
+      <div class="shop-head"><h2>${I("basket", 2)} 상점</h2>${coinsHtml()}${btn(I("close"), "small", 'data-act="back"')}</div>
       <div class="tabs">${tabs.map(([k, n]) => btn(n, k === tab ? "tab on" : "tab", `data-act="tab" data-id="${k}"`)).join("")}</div>
       <div class="shop-body">
         <div class="side"><canvas class="preview" width="96" height="84"></canvas><div class="side-nm"></div></div>
@@ -339,8 +339,7 @@ function showShop(tab = "skin") {
     const x = c.getContext("2d"); x.imageSmoothingEnabled = false;
     const t = c.dataset.tab, id = c.dataset.id;
     if (t === "trail") {
-      x.font = "22px sans-serif"; x.textAlign = "center";
-      x.fillText({ none: "🚫", dust: "💨", hearts: "💗", stars: "⭐", notes: "🎵", fire: "🔥", rainbow: "🌈" }[id], 20, 30);
+      drawIcon(x, TRAIL_ICON[id], 20, 22, 2);
     } else drawChicken(x, "idle", 0, t === "skin" ? id : save.skin, t === "hat" ? id : "none", 20, 39, { scale: 1.5, phase: 3 });
   });
   ui.querySelectorAll(".card[data-id]").forEach((card) => {
@@ -394,11 +393,11 @@ function buyItem(id) {
 function showGacha() {
   setScreen("gacha", `
     <div class="panel">
-      <h2>🥚 황금알 뽑기</h2>
+      <h2>${I("egg", 2)} 황금알 뽑기</h2>
       <p>코인 ${GACHA_PRICE}개로 알을 깨면 아직 없는 스킨·모자·트레일 중 하나가 나와요!<br><small>(모두 가졌다면 코인 500개)</small></p>
       <canvas class="eggcv" width="160" height="110"></canvas>
       <div class="gacha-res"></div>
-      <div class="row">${btn(`<i class="ic-coin"></i>${GACHA_PRICE} 알 깨기`, "primary", 'data-act="hatch"')}${btn("돌아가기", "", 'data-act="back"')}</div>
+      <div class="row">${btn(`${I("coin")}${GACHA_PRICE} 알 깨기`, "primary", 'data-act="hatch"')}${btn("돌아가기", "", 'data-act="back"')}</div>
       <div class="gacha-coins">${coinsHtml()}</div>
     </div>
   `, {
@@ -414,8 +413,8 @@ function showGacha() {
         const res = $(".gacha-res", ui);
         if (prize) {
           save.owned[prize[0]].push(prize[1].id);
-          res.innerHTML = `🎉 <b>${prize[1].name}</b> ${{ skin: "스킨", hat: "모자", trail: "트레일" }[prize[0]]} 획득!`;
-        } else { save.coins += 500; res.innerHTML = "🎉 전부 모았네요! 코인 <b>500</b>개!"; }
+          res.innerHTML = `${I("party")} <b>${prize[1].name}</b> ${{ skin: "스킨", hat: "모자", trail: "트레일" }[prize[0]]} 획득!`;
+        } else { save.coins += 500; res.innerHTML = `${I("party")} 전부 모았네요! 코인 <b>500</b>개!`; }
         persist();
         sfx("j_best", { vol: 0.7, vary: 0 });
         el.disabled = false;
@@ -454,12 +453,12 @@ function showMissions() {
     return `<div class="mission ${m.done ? "done" : ""}">
       <div class="mt">${missionText(m)}</div>
       <div class="bar"><i style="width:${Math.round(k * 100)}%"></i><span>${Math.min(prog, m.goal)} / ${m.goal}</span></div>
-      ${m.done ? btn(`<i class="ic-coin"></i>${m.reward} 받기`, "small primary", `data-act="claim" data-i="${i}"`) : `<div class="reward"><i class="ic-coin"></i>${m.reward}</div>`}
+      ${m.done ? btn(`${I("coin")}${m.reward} 받기`, "small primary", `data-act="claim" data-i="${i}"`) : `<div class="reward">${I("coin")}${m.reward}</div>`}
     </div>`;
   }).join("");
   setScreen("missions", `
     <div class="panel wide">
-      <h2>🎯 미션</h2>
+      <h2>${I("flag", 2)} 미션</h2>
       <p class="sub">미션을 깨면 더 어려운 미션이 나와요. 지금까지 ${save.stats.missionsDone}개 완료!</p>
       ${items}
       ${btn("돌아가기", "", 'data-act="back"')}
@@ -493,7 +492,7 @@ function beginRun() {
   resetMix();
   closeModal();
   game.start();
-  setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
+  setScreen("run", `${btn(I("pause"), "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
   playBgm(["run1", "run2", "run3"][save.stats.runs % 3]);
   duckBgm(1);
 }
@@ -509,15 +508,15 @@ function pause() {
   setScreen("pause", `
     <div class="panel">
       <h2>일시정지</h2>
-      <div class="pause-missions">${save.missions.map((m) => `<div>${m.done || game.missionProgress(m) >= m.goal ? "✅" : "⬜"} ${missionText(m)}</div>`).join("")}</div>
-      <div class="row">${btn("▶ 계속", "primary", 'data-act="resume"')}${btn("그만하기", "", 'data-act="quit"')}</div>
+      <div class="pause-missions">${save.missions.map((m) => `<div>${m.done || game.missionProgress(m) >= m.goal ? I("check") : I("box")} ${missionText(m)}</div>`).join("")}</div>
+      <div class="row">${btn(`${I("play")} 계속`, "primary", 'data-act="resume"')}${btn("그만하기", "", 'data-act="quit"')}</div>
     </div>
   `, { resume: () => resume(), quit: () => { game.die(true); game.state = "over"; finishRun(game.result()); } });
 }
 function resume() {
   sfx("select");
   muffle(20000, 0.3);
-  setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
+  setScreen("run", `${btn(I("pause"), "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
   duckBgm(1);
   game.state = "run";
   last = performance.now();
@@ -566,17 +565,17 @@ function showOver() {
       <div class="score" data-to="${r.score}">0</div>
       <div class="over-grid">
         <div><span>거리</span><b>${r.dist}m</b></div>
-        <div><span>코인</span><b><i class="ic-coin"></i>+${r.coins}</b></div>
+        <div><span>코인</span><b>${I("coin")}+${r.coins}</b></div>
         <div><span>최대 콤보</span><b>${r.combo}</b></div>
-        <div><span>최대 병아리</span><b>🐤 ${r.maxChicks || 0}마리</b></div>
+        <div><span>최대 병아리</span><b>${I("chick")} ${r.maxChicks || 0}마리</b></div>
         <div><span>잃은 병아리</span><b>${r.run.chicksLost || 0}마리</b></div>
         <div><span>최고 점수</span><b>${save.best.toLocaleString()}</b></div>
       </div>
-      ${doneCount ? `<div class="mdone">🎯 완료한 미션 ${doneCount}개! 미션 화면에서 보상을 받으세요</div>` : ""}
+      ${doneCount ? `<div class="mdone">${I("flag")} 완료한 미션 ${doneCount}개! 미션 화면에서 보상을 받으세요</div>` : ""}
       <div class="row">
-        ${canRevive ? btn(`💗 부활 <i class="ic-coin"></i>${reviveCost}`, "revive", 'data-act="revive"') : ""}
-        ${btn("↻ 다시하기", "primary", 'data-act="again"')}
-        ${btn("🏠 홈", "", 'data-act="home"')}
+        ${canRevive ? btn(`${I("heart")} 부활 ${I("coin")}${reviveCost}`, "revive", 'data-act="revive"') : ""}
+        ${btn(`${I("retry")} 다시하기`, "primary", 'data-act="again"')}
+        ${btn(`${I("home")} 홈`, "", 'data-act="home"')}
       </div>
     </div>
   `, {
@@ -590,7 +589,7 @@ function showOver() {
       for (const k of Object.keys(r.run)) st[k] -= r.run[k];
       save.coins -= r.coins + reviveCost;
       persist();
-      setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
+      setScreen("run", `${btn(I("pause"), "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
       playBgm(["run1", "run2", "run3"][save.stats.runs % 3]);
       game.revive();
     },
