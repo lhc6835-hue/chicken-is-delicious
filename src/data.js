@@ -48,7 +48,7 @@ export function defaultSave() {
     missions: [], missionTier: {},
     stats: { runs: 0, coinsTotal: 0, distTotal: 0, boosters: 0, speeds: 0, smash: 0, glide: 0, jumps: 0, gems: 0, springs: 0, eggs: 0, crows: 0, chicks: 0, chicksLost: 0, deaths: 0, missionsDone: 0 },
     daily: { last: "", streak: 0 },
-    settings: { sfx: 0.8, bgm: 0.5, shake: true, muted: false },
+    settings: { sfx: 0.8, bgm: 0.5, shake: true, muted: false, fullscreen: true },
   };
 }
 

@@ -36,13 +36,39 @@ const game = new Game(canvas, save, {
 // ---------------------------------------------------------------- layout
 function fit() {
   const k = Math.min(window.innerWidth / W, window.innerHeight / H);
-  const s = k >= 1 ? Math.floor(k * 4) / 4 : k;
+  const s = k;
   const wrap = $("#wrap");
   wrap.style.width = `${Math.floor(W * s)}px`;
   wrap.style.height = `${Math.floor(H * s)}px`;
   document.documentElement.style.setProperty("--k", s);
 }
 window.addEventListener("resize", fit);
+document.addEventListener("fullscreenchange", fit);
+document.addEventListener("webkitfullscreenchange", fit);
+
+// ---------------------------------------------------------------- fullscreen
+// Browsers only allow fullscreen from a click, tap or key press, so the first input of the session
+// (and every run start) switches to it; on phones the screen is then locked to landscape.
+const isFull = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+function goFullscreen() {
+  if (!save.settings.fullscreen || isFull()) return;
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req) return;
+  try {
+    const p = req.call(el, { navigationUI: "hide" });
+    const lock = () => { try { const o = window.screen.orientation; if (o && o.lock) o.lock("landscape").catch(() => {}); } catch (e) { /* not supported */ } };
+    if (p && p.then) p.then(lock).catch(() => {}); else lock();
+  } catch (e) { /* refused: carry on windowed */ }
+}
+function exitFullscreen() {
+  const ex = document.exitFullscreen || document.webkitExitFullscreen;
+  if (isFull() && ex) try { ex.call(document); } catch (e) { /* ignore */ }
+}
+window.addEventListener("pointerdown", goFullscreen, true);
+window.addEventListener("keydown", (e) => { if (!["Escape", "F11", "Tab"].includes(e.key)) goFullscreen(); }, true);
+// leaving fullscreen mid-run (Esc, swipe) pauses the game instead of letting the chicken die
+document.addEventListener("fullscreenchange", () => { if (!isFull() && screen === "run") pause(); });
 fit();
 
 // ---------------------------------------------------------------- loop
@@ -262,12 +288,14 @@ function showSettings() {
       <label class="set">배경음악 <input type="range" min="0" max="1" step="0.05" value="${s.bgm}" data-k="bgm"></label>
       <label class="set">화면 흔들림 ${btn(s.shake ? "켜짐" : "꺼짐", "small", 'data-act="shake"')}</label>
       <label class="set">음소거 ${btn(s.muted ? "켜짐" : "꺼짐", "small", 'data-act="mute"')}</label>
+      <label class="set">자동 전체화면 ${btn(s.fullscreen ? "켜짐" : "꺼짐", "small", 'data-act="full"')}</label>
       <div class="row">${btn("데이터 초기화", "small danger", 'data-act="reset"')}${btn("돌아가기", "", 'data-act="back"')}</div>
     </div>
   `, {
     back: () => { sfx("back"); go(showTitle); },
     shake: () => { s.shake = !s.shake; persist(); sfx("toggle"); showSettings(); },
     mute: () => { s.muted = !s.muted; setMuted(s.muted); persist(); sfx("toggle"); showSettings(); },
+    full: () => { s.fullscreen = !s.fullscreen; persist(); sfx("toggle"); if (s.fullscreen) goFullscreen(); else exitFullscreen(); showSettings(); },
     reset: () => {
       modal(`<h2>정말 초기화할까요?</h2><p>코인, 스킨, 기록이 모두 사라져요.</p><div class="row">${btn("취소", "", 'data-act="no"')}${btn("초기화", "danger", 'data-act="yes"')}</div>`, {
         no: () => closeModal(),
@@ -482,6 +510,7 @@ function showMissions() {
 
 // ---------------------------------------------------------------- run flow
 function startRun() {
+  goFullscreen();
   if (trans.busy) return;
   ui.onpointerdown = null;
   sfx("select");
