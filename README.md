@@ -1,6 +1,8 @@
-# 꼬꼬 대시 (Kkokko Dash)
+# FREE RANGE
 
-닭이 달리는 픽셀아트 러너 게임. `index.html`을 브라우저로 열면 바로 플레이할 수 있어요 (GitHub Pages 그대로 가능).
+> *Don't become dinner.*
+
+도망치는 닭의 픽셀아트 러너 게임. `index.html`을 브라우저로 열면 바로 플레이할 수 있어요 (GitHub Pages 그대로 가능).
 
 ## 조작
 - **스페이스 / 화면 터치**: 점프. 길게 누를수록 높이 뜀
@@ -14,6 +16,11 @@
 - 코인 콤보(음계가 올라가는 효과음, 10/25/50/100 콤보 이펙트), 500m마다 SPEED UP, 900m마다 시간대 변경(낮→노을→밤→새벽)
 - 상점: 스킨 10종, 모자 10종, 트레일 7종, 강화 5종(5단계), 소모 아이템 3종
 - 황금알 뽑기, 출석 보상(7일), 미션 3개(깰수록 어려워짐), 기록, 부활, 설정
+
+## 화면 전환
+- 달걀 껍질: 런 시작·홈 이동 때 껍질 두 쪽이 쾅 닫혔다가 금이 가며 깨짐
+- 아이리스: 잡히면 카메라가 닭 쪽으로 동그랗게 닫힘 (카툰 엔딩 스타일)
+- 디더 와이프: 메뉴 사이 이동
 
 ## 개발
 ```
@@ -31,5 +38,5 @@ npm run bake       # assets/fx/*.png + src/fxdata.js
 - 이펙트: [pixelfx](https://github.com/patch-gg/pixelfx) (MIT) 효과들을 스프라이트 시트로 구움
 - 배경음악: Juhani Junkala — *5 Chiptunes (Action)* / Retro Game Music Pack, OpenGameArt, CC0
 - 효과음: Kenney — Digital Audio, Impact Sounds, Interface Sounds, Music Jingles (kenney.nl), CC0
-- 폰트: [Galmuri](https://github.com/quiple/galmuri) (SIL OFL 1.1, `assets/fonts/GALMURI-OFL.md`)
+- 폰트: [Silkscreen](https://github.com/googlefonts/silkscreen) (OFL, 로고), [Galmuri](https://github.com/quiple/galmuri) (SIL OFL 1.1, `assets/fonts/GALMURI-OFL.md`)
 - 닭 도트: 제공된 레퍼런스 이미지를 기반으로 다시 찍음

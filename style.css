@@ -1,3 +1,5 @@
+@font-face { font-family: "Silkscreen"; src: url("assets/fonts/silkscreen-latin-400-normal.woff2") format("woff2"); font-display: block; }
+@font-face { font-family: "Silkscreen"; font-weight: 700; src: url("assets/fonts/silkscreen-latin-700-normal.woff2") format("woff2"); font-display: block; }
 @font-face { font-family: "Galmuri11"; src: url("assets/fonts/Galmuri11.woff2") format("woff2"); font-display: block; }
 @font-face { font-family: "Galmuri11"; font-weight: bold; src: url("assets/fonts/Galmuri11-Bold.woff2") format("woff2"); font-display: block; }
 
@@ -37,14 +39,31 @@ button .dot { position: absolute; top: -5px; right: -5px; background: var(--red)
 .screen-title { display: flex; flex-direction: column; align-items: center; background: linear-gradient(rgba(20, 10, 30, 0.15), rgba(20, 10, 30, 0.35)); height: 100%; }
 .title-top { width: 100%; display: flex; justify-content: space-between; padding: 6px 8px; align-items: center; }
 .best { background: rgba(26, 14, 20, 0.6); padding: 2px 6px; font-size: 9px; }
-.logo { text-align: center; margin-top: 2px; cursor: pointer; }
-.logo h1 { margin: 0; font-size: 40px; font-weight: bold; color: var(--gold); letter-spacing: 2px;
-  text-shadow: 2px 0 var(--ink), -2px 0 var(--ink), 0 2px var(--ink), 0 -2px var(--ink), 2px 2px var(--ink), 0 4px #8a3a10, 2px 4px var(--ink), 0 5px var(--ink);
-  animation: bob 1.4s ease-in-out infinite; }
-.logo-sub { color: #fff; font-size: 11px; text-shadow: 1px 1px var(--ink); transform: rotate(-3deg); }
-@keyframes bob { 50% { transform: translateY(-3px) rotate(-1deg); } }
+/* ---- FREE RANGE wordmark ---- */
+.logo { text-align: center; margin-top: -4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; }
+.logo-kicker { font: 400 8px Silkscreen, monospace; letter-spacing: 2px; color: #fff4dc; text-shadow: 1px 1px var(--ink); opacity: 0.9; animation: fadein 0.6s 0.3s both; }
+.wm { font-family: Silkscreen, monospace; font-weight: 700; line-height: 1; white-space: nowrap; }
+.wm span { position: relative; z-index: 0; display: inline-block; animation: hop 1.6s steps(3) infinite; animation-delay: calc(var(--i) * 0.1s); }
+.wm span::before { content: attr(data-t); position: absolute; left: 0; top: 0; z-index: -1; color: var(--ink); }
+.wm-free { font-size: 16px; letter-spacing: 10px; margin: 2px 0 -1px 10px; color: #fff4dc; }
+.wm-free span::before { text-shadow: 2px 0 var(--ink), -2px 0 var(--ink), 0 2px var(--ink), 0 -2px var(--ink), 2px 2px var(--ink), -2px 2px var(--ink), 0 4px var(--ink); }
+.wm-range { font-size: 48px; letter-spacing: 1px; position: relative; padding: 0 4px; }
+.wm-range span { color: transparent; }
+.wm-range span::after { content: attr(data-t); position: absolute; left: 0; top: 0; color: transparent;
+  background: linear-gradient(#fff6c4 0 22%, #ffd84a 22% 52%, #f5a524 52% 76%, #e0701a 76%); -webkit-background-clip: text; background-clip: text; }
+.wm-range span::before { text-shadow: 3px 0 var(--ink), -3px 0 var(--ink), 0 -3px var(--ink), 3px -3px var(--ink), -3px -3px var(--ink), 0 3px var(--ink), 3px 3px var(--ink), -3px 3px var(--ink),
+  0 6px #a0400c, 3px 6px var(--ink), -3px 6px var(--ink), 0 9px #6a2408, 3px 9px var(--ink), -3px 9px var(--ink), 0 12px var(--ink); }
+.wm-range::before, .wm-range::after { content: ""; position: absolute; top: 18px; height: 3px; background: #fff4dc; box-shadow: 0 0 0 1px var(--ink), 0 8px 0 0 #fff4dc, 0 8px 0 1px var(--ink); animation: streak 0.5s steps(2) infinite; }
+.wm-range::before { left: -34px; width: 24px; }
+.wm-range::after { left: -18px; top: 32px; width: 10px; animation-delay: 0.25s; }
+.logo-tag { font: 400 8px Silkscreen, monospace; letter-spacing: 1px; color: #fff4dc; background: #e0301c; padding: 2px 6px 1px; margin-top: 8px;
+  box-shadow: 0 0 0 1px var(--ink), 2px 2px 0 1px var(--ink); transform: rotate(-3deg); animation: stamp 0.35s 0.45s cubic-bezier(.3, 1.6, .6, 1) both; }
+@keyframes hop { 0%, 60%, 100% { transform: translateY(0); } 75% { transform: translateY(-3px); } }
+@keyframes streak { 50% { transform: translateX(-4px); opacity: 0.6; } }
+@keyframes stamp { from { transform: rotate(-3deg) scale(2.4); opacity: 0; } to { transform: rotate(-3deg) scale(1); opacity: 1; } }
+@keyframes fadein { from { opacity: 0; transform: translateY(-4px); } }
 canvas.preview { width: 96px; height: 84px; image-rendering: pixelated; }
-.screen-title canvas.preview { margin-top: -6px; height: 70px; }
+.screen-title canvas.preview { margin-top: -4px; height: 58px; width: 66px; }
 .menu { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .hint { position: absolute; bottom: 4px; font-size: 8px; opacity: 0.8; animation: blink 1.2s steps(2) infinite; text-shadow: 1px 1px var(--ink); }
 @keyframes blink { 50% { opacity: 0.3; } }
@@ -114,3 +133,11 @@ canvas.eggcv { width: 160px; height: 110px; image-rendering: pixelated; }
 
 .screen-run { pointer-events: none; }
 .screen-run .pausebtn { pointer-events: auto; position: absolute; right: 4px; top: 40px; opacity: 0.8; }
+
+#tr { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; image-rendering: pixelated; z-index: 10; }
+.over-title { font-family: Silkscreen, monospace; font-weight: 700; font-size: 22px !important; letter-spacing: 1px; color: #ff6a4a !important; margin-bottom: 0 !important;
+  text-shadow: 2px 0 var(--ink), -2px 0 var(--ink), 0 2px var(--ink), 0 -2px var(--ink), 0 4px #6a2408 !important; }
+.over-title.best { color: var(--gold) !important; animation: titlepop 0.4s cubic-bezier(.3, 1.6, .6, 1) both; }
+@keyframes titlepop { from { transform: scale(2.2); opacity: 0; } }
+.over-sub { font-size: 8px; opacity: 0.85; margin-bottom: 2px; }
+#loading { font-family: Silkscreen, monospace; letter-spacing: 2px; color: var(--gold); }

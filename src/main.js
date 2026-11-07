@@ -1,6 +1,7 @@
 import { Game } from "./game.js";
 import { W, H } from "./bg.js";
 import { loadFx, drawFxFrame } from "./fx.js";
+import { Transitions } from "./transition.js";
 import { initAudio, sfx, playBgm, setVolumes, setMuted, duckBgm, jetLoop } from "./audio.js";
 import { SKINS, HATS, TRAILS, drawChicken } from "./sprites.js";
 import {
@@ -12,6 +13,8 @@ const $ = (s, r = document) => r.querySelector(s);
 const canvas = $("#game");
 canvas.width = W; canvas.height = H;
 const ui = $("#ui");
+const trans = new Transitions($("#tr"));
+const go = (fn) => trans.run("feather", fn);
 let save = loadSave();
 fillMissions(save);
 writeSave(save);
@@ -22,7 +25,9 @@ let screen = "title";
 let lastResult = null;
 
 const game = new Game(canvas, save, {
-  onGameOver(r) { finishRun(r); },
+  onGameOver(r) {
+    trans.run("iris", () => finishRun(r), game.deathPos || {});
+  },
   onMission(m) { toast(`🎯 미션 완료! ${missionText(m)}`); },
   onHud() {},
 });
@@ -46,6 +51,8 @@ function loop(now) {
   last = now;
   game.update(dt);
   game.draw();
+  trans.update(dt);
+  trans.draw();
   if (screen === "shop" || screen === "title") drawPreview();
   requestAnimationFrame(loop);
 }
@@ -57,6 +64,7 @@ window.addEventListener("keydown", (e) => {
     e.preventDefault();
     if (e.repeat) return;
     initAudio();
+    if (trans.busy) return;
     if (screen === "title") { startRun(); return; }
     if (screen === "over" && e.code === "Space") { startRun(); return; }
     if (screen === "run") game.press();
@@ -124,6 +132,8 @@ function setScreen(name, html, bind) {
   if (bind) bindClicks(ui, bind);
 }
 
+const letters = (w) => [...w].map((ch, i) => `<span style="--i:${i}" data-t="${ch}">${ch}</span>`).join("");
+
 function showTitle() {
   game.state = "idle";
   jetLoop(false);
@@ -132,7 +142,12 @@ function showTitle() {
   const unclaimed = save.missions.filter((m) => m.done && !m.claimed).length;
   setScreen("title", `
     <div class="title-top">${coinsHtml()}<span class="best">최고 ${save.best.toLocaleString()}점 · ${save.bestDist}m</span></div>
-    <div class="logo"><div class="logo-sub">달려라 꼬꼬!</div><h1>꼬꼬 대시</h1></div>
+    <div class="logo">
+      <div class="logo-kicker">★ A CHICKEN'S GREAT ESCAPE ★</div>
+      <div class="wm wm-free">${letters("FREE")}</div>
+      <div class="wm wm-range">${letters("RANGE")}</div>
+      <div class="logo-tag">DON'T BECOME DINNER.</div>
+    </div>
     <canvas class="preview" width="96" height="84"></canvas>
     <div class="menu">
       ${btn("▶ 시작하기", "big primary", 'data-act="play"')}
@@ -150,12 +165,12 @@ function showTitle() {
     <div class="hint">스페이스 / 화면 터치로 시작</div>
   `, {
     play: () => startRun(),
-    shop: () => { sfx("open"); showShop("skin"); },
-    missions: () => { sfx("open"); showMissions(); },
-    gacha: () => { sfx("open"); showGacha(); },
-    stats: () => { sfx("open"); showStats(); },
-    settings: () => { sfx("open"); showSettings(); },
-    help: () => { sfx("open"); showHelp(); },
+    shop: () => { sfx("open"); go(() => showShop("skin")); },
+    missions: () => { sfx("open"); go(() => showMissions()); },
+    gacha: () => { sfx("open"); go(() => showGacha()); },
+    stats: () => { sfx("open"); go(() => showStats()); },
+    settings: () => { sfx("open"); go(() => showSettings()); },
+    help: () => { sfx("open"); go(() => showHelp()); },
   });
   ui.querySelector(".logo").addEventListener("click", () => sfx("jump", { rate: 1 + Math.random() }));
   ui.onpointerdown = (e) => { if (screen === "title" && e.target === ui && !$(".modal", ui)) startRun(); };
@@ -216,7 +231,7 @@ function showHelp() {
       </ul>
       ${btn("돌아가기", "", 'data-act="back"')}
     </div>
-  `, { back: () => { sfx("back"); showTitle(); } });
+  `, { back: () => { sfx("back"); go(showTitle); } });
 }
 
 function showStats() {
@@ -232,7 +247,7 @@ function showStats() {
       <div class="stats">${rows.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("")}</div>
       ${btn("돌아가기", "", 'data-act="back"')}
     </div>
-  `, { back: () => { sfx("back"); showTitle(); } });
+  `, { back: () => { sfx("back"); go(showTitle); } });
 }
 
 function showSettings() {
@@ -247,7 +262,7 @@ function showSettings() {
       <div class="row">${btn("데이터 초기화", "small danger", 'data-act="reset"')}${btn("돌아가기", "", 'data-act="back"')}</div>
     </div>
   `, {
-    back: () => { sfx("back"); showTitle(); },
+    back: () => { sfx("back"); go(showTitle); },
     shake: () => { s.shake = !s.shake; persist(); sfx("toggle"); showSettings(); },
     mute: () => { s.muted = !s.muted; setMuted(s.muted); persist(); sfx("toggle"); showSettings(); },
     reset: () => {
@@ -309,7 +324,7 @@ function showShop(tab = "skin") {
       </div>
     </div>
   `, {
-    back: () => { sfx("back"); showTitle(); },
+    back: () => { sfx("back"); go(showTitle); },
     tab: (el) => { sfx("select"); showShop(el.dataset.id); },
     pick: (el) => buyOrEquip(tab, el.dataset.id),
     up: (el) => buyUpgrade(el.dataset.id),
@@ -384,7 +399,7 @@ function showGacha() {
       <div class="gacha-coins">${coinsHtml()}</div>
     </div>
   `, {
-    back: () => { sfx("back"); showTitle(); },
+    back: () => { sfx("back"); go(showTitle); },
     hatch: (el) => {
       if (el.disabled) return;
       if (!spend(GACHA_PRICE)) return;
@@ -447,7 +462,7 @@ function showMissions() {
       ${btn("돌아가기", "", 'data-act="back"')}
     </div>
   `, {
-    back: () => { sfx("back"); showTitle(); },
+    back: () => { sfx("back"); go(showTitle); },
     claim: (el) => {
       const i = +el.dataset.i, m = save.missions[i];
       save.coins += m.reward;
@@ -465,9 +480,14 @@ function showMissions() {
 
 // ---------------------------------------------------------------- run flow
 function startRun() {
+  if (trans.busy) return;
   ui.onpointerdown = null;
-  closeModal();
   sfx("select");
+  trans.run("shell", beginRun);
+}
+
+function beginRun() {
+  closeModal();
   game.start();
   setScreen("run", `${btn("❚❚", "pausebtn small", 'data-act="pause"')}`, { pause: () => pause() });
   playBgm(["run1", "run2", "run3"][save.stats.runs % 3]);
@@ -534,7 +554,7 @@ function showOver() {
   const doneCount = save.missions.filter((m) => m.done && !m.claimed).length;
   setScreen("over", `
     <div class="panel over">
-      <h2>${newBest ? "🏆 신기록!" : "꼬꼬 다운..."}</h2>
+      <h2 class="over-title ${newBest ? "best" : ""}">${newBest ? "NEW RECORD!" : "DINNER TIME."}</h2><div class="over-sub">${newBest ? "최고 기록을 갈아치웠어요!" : "이번엔 잡혔어요... 다시 도망쳐요!"}</div>
       <div class="score" data-to="${r.score}">0</div>
       <div class="over-grid">
         <div><span>거리</span><b>${r.dist}m</b></div>
@@ -551,7 +571,7 @@ function showOver() {
     </div>
   `, {
     again: () => startRun(),
-    home: () => { sfx("back"); showTitle(); },
+    home: () => { sfx("back"); trans.run("shell", showTitle); },
     revive: () => {
       if (save.coins < reviveCost) return;
       // undo the run's bookkeeping; it is counted again when this run really ends
@@ -586,10 +606,11 @@ function showOver() {
 }
 
 // ---------------------------------------------------------------- boot
-$("#loading").textContent = "이펙트 불러오는 중...";
-Promise.all([loadFx(), document.fonts ? document.fonts.load("12px Galmuri11").catch(() => {}) : null]).then(() => {
+$("#loading").textContent = "HATCHING...";
+Promise.all([loadFx(), document.fonts ? Promise.all(["12px Galmuri11", "700 16px Silkscreen", "16px Silkscreen"].map((f) => document.fonts.load(f))).catch(() => {}) : null]).then(() => {
   $("#loading").remove();
   showTitle();
+  trans.open("shell");
   requestAnimationFrame(loop);
 });
 

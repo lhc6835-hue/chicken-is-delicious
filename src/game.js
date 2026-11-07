@@ -563,6 +563,7 @@ export class Game {
     const p = this.p;
     if (!p.alive) return;
     p.alive = false;
+    this.deathPos = { x: Math.round(p.x - this.camX), y: Math.round(Math.max(30, Math.min(H - 30, p.y - 18))) };
     jetLoop(false);
     setBgmRate(1);
     p.booster = 0; p.speed = 0;
