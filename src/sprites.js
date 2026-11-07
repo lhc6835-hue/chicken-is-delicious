@@ -193,6 +193,24 @@ export function chickenCanvas(poseName, frame, skinId, hatId, phase = 0) {
 }
 
 /** Draws the chicken with its feet at (x, y) in screen pixels, scaled by CELL. */
+let glintTmp = null;
+function glintCanvas(src, t) {
+  // a diagonal two-cell band crossing the body every 1.6 s, then a pause
+  const period = 1.6, f = (t % period) / period;
+  if (f > 0.55) return null;
+  if (!glintTmp) glintTmp = document.createElement("canvas");
+  glintTmp.width = src.width; glintTmp.height = src.height;
+  const x = glintTmp.getContext("2d");
+  x.clearRect(0, 0, src.width, src.height);
+  x.drawImage(src, 0, 0);
+  x.globalCompositeOperation = "source-in";
+  x.fillStyle = "rgba(255,255,230,0.85)";
+  const pos = -6 + (f / 0.55) * (src.width + 12);
+  for (let y = 0; y < src.height; y++) x.fillRect(Math.round(pos - y * 0.5), y, 2, 1);
+  x.globalCompositeOperation = "source-over";
+  return glintTmp;
+}
+
 export function drawChicken(ctx, poseName, frame, skinId, hatId, x, y, opts = {}) {
   const skin = SKINS.find((s) => s.id === skinId) || SKINS[0];
   const c = chickenCanvas(poseName, frame, skinId, hatId, opts.phase || 0);
@@ -202,11 +220,36 @@ export function drawChicken(ctx, poseName, frame, skinId, hatId, x, y, opts = {}
   ctx.imageSmoothingEnabled = false;
   if (skin.alpha) ctx.globalAlpha *= skin.alpha;
   if (opts.alpha !== undefined) ctx.globalAlpha *= opts.alpha;
-  ctx.translate(Math.round(x), Math.round(y));
+  ctx.translate(Math.round(x), Math.round(y + (opts.dy || 0)));
   if (opts.rot) ctx.rotate(opts.rot);
   if (opts.sx || opts.sy) ctx.scale(opts.sx || 1, opts.sy || 1);
+  // skin overlays (cosmetic): a warm aura behind the body
+  if (opts.aura) {
+    // normal blending, so it stays a warm haze on a bright sky instead of blowing out to white
+    ctx.save(); ctx.fillStyle = opts.aura;
+    const pulse = 1 + Math.sin((opts.time || 0) * 9) * 0.06;
+    ctx.beginPath(); ctx.ellipse(-1 * k, -10 * k, 11 * k * pulse, 12 * k * pulse, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-1 * k, -10 * k, 8 * k * pulse, 9 * k * pulse, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
   if (opts.flash) ctx.filter = "brightness(3)";
   ctx.drawImage(c, -w / 2, -h, w, h);
+  ctx.filter = "none";
+  const pose = (POSES[poseName] || POSES.run)[frame % (POSES[poseName] || POSES.run).length];
+  // a gloss band sweeping across the body, clipped to the sprite
+  if (opts.glint !== undefined) {
+    const g = glintCanvas(c, opts.glint);
+    if (g) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(g, -w / 2, -h, w, h); ctx.restore(); }
+  }
+  // glowing eyes (the eye sits at art cell (10, 4) once mirrored, below the hat rows)
+  if (opts.eye && pose.eye !== "x" && pose.eye !== "blink") {
+    const ex = -w / 2 + 10 * k + k / 2, ey = -h + (TOP + 4 + (pose.bob || 0)) * k + k / 2;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.35 + Math.sin((opts.time || 0) * 5) * 0.1; ctx.fillStyle = opts.eye;
+    ctx.beginPath(); ctx.arc(ex, ey, 3.2 * k, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1; ctx.fillRect(Math.round(ex - k / 2), Math.round(ey - k / 2), k, k);
+    ctx.restore();
+  }
   ctx.restore();
   const hat = HATS.find((hh) => hh.id === hatId);
   if (hat && hat.glow) {

@@ -6,6 +6,7 @@ import { drawChicken, getProps, SKINS } from "./sprites.js";
 import { FxLayer, drawFxFrame } from "./fx.js";
 import { sfx, coinSound, jetLoop, setBgmRate, tapeStop, muffle, duck, windLoop, resetMix, chirp } from "./audio.js";
 import { CHICK, drawChick, drawChickEgg, chickIcon } from "./chicks.js";
+import { skinFx, drawPart, partIsFront } from "./skinfx.js";
 import { upgradeValue } from "./data.js";
 
 const GROUND = 232;
@@ -313,6 +314,7 @@ export class Game {
     p.sx = 0.75; p.sy = 1.3;
     this.run.jumps++;
     sfx("jump", { vol: 0.5, vary: 0.08 });
+    this.skinEmit("jump");
     for (let i = 0; i < 6; i++) this.dust(p.x + rnd(-8, 8), p.y, rnd(-60, 20), rnd(-40, -10));
   }
 
@@ -395,6 +397,7 @@ export class Game {
     this.solids = this.solids.filter((s) => s.x + s.w > this.camX - 100);
     this.stepT -= dt;
     if (this.stepT <= 0) { this.stepT = 0.08; this.dust(this.p.x - 6, this.p.y, -30, -20); }
+    this.skinEmit("run", dt);
     this.updateParts(dt);
     this.fx.update(dt);
   }
@@ -508,6 +511,7 @@ export class Game {
       p.sx = 1.15; p.sy = 0.88;
       for (let i = 0; i < 3; i++) this.dust(p.x + rnd(-8, 8), p.y, rnd(-50, 50), rnd(-30, -5));
     }
+    this.skinEmit("land", vy);
     if (s.crumble === -1) {
       s.crumble = 0.42;
       sfx("crumble", { vol: 0.5, rate: 1.3 });
@@ -656,6 +660,7 @@ export class Game {
       p.vy = 0; p.vx = 0;
       this.addShake(4);
     }
+    this.skinEmit("death");
     this.state = "dying";
     this.dieT = fell ? 0.9 : 1.4;
   }
@@ -759,6 +764,7 @@ export class Game {
           sfx(Math.random() < 0.5 ? "step1" : "step2", { vol: 0.12, rate: 1.4 });
         }
       }
+      this.skinEmit("run", dt);
       this.trailT -= dt;
       if (this.trailT <= 0) { this.trailT = 0.05; this.emitTrail(); }
       if (p.gliding && Math.random() < dt * 8) this.feathers(p.x - 6, p.y - 8, 1, this.skinFeathers());
@@ -827,6 +833,26 @@ export class Game {
   warnBeep(kind, left, dt) {
     // three rising beeps over the last second
     for (const t of [1, 0.66, 0.33]) if (left > t && left - dt <= t) sfx("warn", { vol: 0.5, rate: 2.2 - t, vary: 0 });
+  }
+
+  // ---------------------------------------------------------------- skin effects (cosmetic only)
+  get sfxSkin() { return skinFx(this.save.skin); }
+  skinEmit(kind, extra) {
+    const f = this.sfxSkin, p = this.p;
+    // particles mostly travel with the chicken so they read as part of it, then drift off behind
+    const carry = this.state === "idle" ? 120 : this.worldSpeed;
+    const k = kind === "run" ? (f.carry ?? 0.85) : kind === "death" ? 0 : 0.55;
+    const emit = (q) => { q.vx += carry * k; this.parts.push(q); };
+    if (kind === "run") {
+      if (!f.run || !f.rate) return;
+      this.skinAcc = (this.skinAcc || 0) + extra * f.rate;
+      while (this.skinAcc >= 1) { this.skinAcc -= 1; f.run(emit, p.x, p.y + this.skinDy(), 1, { time: this.time }); }
+    } else if (f[kind]) f[kind](emit, p.x, p.y + (kind === "death" ? 0 : this.skinDy()), 1, extra);
+  }
+  skinDy() { return this.sfxSkin.float && this.p.alive ? Math.round(Math.sin(this.time * 4) * 2 - 3) : 0; }
+  skinOpts() {
+    const f = this.sfxSkin;
+    return { dy: this.skinDy(), eye: f.eye, glint: f.glint ? this.time : undefined, aura: f.aura, time: this.time };
   }
 
   // ---------------------------------------------------------------- the chick train
@@ -1215,7 +1241,7 @@ export class Game {
     const blink = p.invuln > 0 && p.alive && Math.floor(this.time * 20) % 2 === 0;
     const flash = p.speed > 0 && Math.floor(this.time * 12) % 3 === 0;
     let rot = p.alive ? (p.booster > 0 ? -0.15 + p.vy * 0.0006 : p.gliding ? 0.08 : 0) : p.rot;
-    drawChicken(ctx, pose, fr, s.skin, s.hat, x, p.y + (p.ground ? 0 : 0), { phase, rot, sx: p.sx, sy: p.sy, alpha: blink ? 0.35 : 1, flash });
+    drawChicken(ctx, pose, fr, s.skin, s.hat, x, p.y, { ...this.skinOpts(), phase, rot, sx: p.sx, sy: p.sy, alpha: blink ? 0.35 : 1, flash });
     if (p.shield && p.alive) this.drawBubble(ctx, x, p.y, "front");
     // glide stamina pips
     if (p.alive && !p.ground && p.booster <= 0 && p.glideLeft < this.glideMax - 0.01) {
@@ -1261,20 +1287,8 @@ export class Game {
   }
 
   drawPartsLayer(ctx, camX, layer) {
-    for (const q of this.parts) {
-      const front = q.kind === "spark" || q.kind === "feather" || q.spin || q.kind === "star" || q.kind === "heart" || q.kind === "note";
-      if ((layer === "front") !== front) continue;
-      const k = 1 - q.t / q.life;
-      const x = Math.round(q.x - camX), y = Math.round(q.y);
-      ctx.fillStyle = q.color;
-      ctx.globalAlpha = q.kind === "smoke" || q.kind === "dust" ? k * 0.8 : Math.min(1, k * 2);
-      if (q.kind === "heart") { ctx.fillRect(x, y, 2, 2); ctx.fillRect(x + 3, y, 2, 2); ctx.fillRect(x - 1, y + 1, 7, 2); ctx.fillRect(x, y + 3, 5, 1); ctx.fillRect(x + 1, y + 4, 3, 1); ctx.fillRect(x + 2, y + 5, 1, 1); }
-      else if (q.kind === "star") { ctx.fillRect(x, y - 2, 1, 5); ctx.fillRect(x - 2, y, 5, 1); }
-      else if (q.kind === "note") { ctx.fillRect(x, y, 3, 2); ctx.fillRect(x + 2, y - 5, 1, 5); ctx.fillRect(x + 3, y - 5, 2, 1); }
-      else if (q.kind === "band") ctx.fillRect(x - Math.round(q.t * this.worldSpeed), y, q.w, 2);
-      else if (q.kind === "feather") { const s = Math.sin(this.time * 8 + q.ph) > 0; ctx.fillRect(x, y, s ? 3 : 2, s ? 1 : 2); }
-      else { const sz = q.kind === "dust" || q.kind === "smoke" ? Math.max(1, Math.round(q.size * (0.6 + q.t / q.life))) : q.size; ctx.fillRect(x - (sz >> 1), y - (sz >> 1), sz, sz); }
-    }
+    const front = layer === "front";
+    for (const q of this.parts) if (partIsFront(q) === front) drawPart(ctx, q, Math.round(q.x - camX), Math.round(q.y), this.time, this.worldSpeed);
     ctx.globalAlpha = 1;
   }
 

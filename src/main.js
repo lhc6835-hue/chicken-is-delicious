@@ -3,6 +3,7 @@ import { W, H } from "./bg.js";
 import { loadFx, drawFxFrame } from "./fx.js";
 import { Transitions } from "./transition.js";
 import { iconHtml as I, drawIcon, TRAIL_ICON } from "./icons.js";
+import { skinFx, drawPart, partIsFront, stepParts } from "./skinfx.js";
 import { initAudio, sfx, playBgm, setVolumes, setMuted, duckBgm, jetLoop, muffle, resetMix, windLoop, duck } from "./audio.js";
 import { SKINS, HATS, TRAILS, drawChicken } from "./sprites.js";
 import {
@@ -134,6 +135,7 @@ function bindClicks(root, map) {
 
 // a small canvas in the menus showing the chicken as dressed
 let previewCv = null;
+const pv = { parts: [], acc: 0, last: 0, beat: -1, skin: "" };
 function drawPreview() {
   if (!previewCv || !previewCv.isConnected) return;
   const c = previewCv.getContext("2d");
@@ -141,9 +143,22 @@ function drawPreview() {
   c.clearRect(0, 0, previewCv.width, previewCv.height);
   const t = performance.now() / 1000;
   const trail = previewCv.dataset.trail || save.trail;
+  const skin = previewCv.dataset.skin || save.skin, f = skinFx(skin);
+  const fx = previewCv.width / 2, fy = previewCv.height - 8, dt = Math.min(0.05, t - (pv.last || t));
+  pv.last = t;
+  if (pv.skin !== skin) { pv.skin = skin; pv.parts.length = 0; pv.acc = 0; }
+  // the skin's effects, at preview scale: running particles plus a showcase jump every 2.4 s
+  const emit = (q) => pv.parts.push(q);
+  if (f.run && f.rate) { pv.acc += dt * f.rate; while (pv.acc >= 1) { pv.acc -= 1; f.run(emit, fx, fy, 1.5, { time: t }); } }
+  const beat = Math.floor(t / 2.4);
+  if (beat !== pv.beat) { pv.beat = beat; if (f.jump) f.jump(emit, fx, fy, 1.5); if (f.land) f.land(emit, fx, fy, 1.5, 400); }
+  stepParts(pv.parts, dt);
+  for (const q of pv.parts) if (!partIsFront(q)) drawPart(c, q, Math.round(q.x), Math.round(q.y), t);
   c.fillStyle = "rgba(0,0,0,0.25)";
   c.fillRect(previewCv.width / 2 - 20, previewCv.height - 10, 40, 4);
-  drawChicken(c, "run", Math.floor(t * 9) % 4, previewCv.dataset.skin || save.skin, previewCv.dataset.hat || save.hat, previewCv.width / 2, previewCv.height - 8, { scale: 3, phase: Math.floor(t * 8) });
+  const dy = f.float ? Math.round(Math.sin(t * 4) * 3 - 4) : 0;
+  drawChicken(c, "run", Math.floor(t * 9) % 4, skin, previewCv.dataset.hat || save.hat, fx, fy, { scale: 3, phase: Math.floor(t * 8), dy, eye: f.eye, glint: f.glint ? t : undefined, aura: f.aura, time: t });
+  for (const q of pv.parts) if (partIsFront(q)) drawPart(c, q, Math.round(q.x), Math.round(q.y), t);
   if (trail && trail !== "none" && trail !== "dust") {
     drawIcon(c, TRAIL_ICON[trail], 12, 12, 1);
   }
@@ -350,7 +365,7 @@ function showShop(tab = "skin") {
       <div class="shop-head"><h2>${I("basket", 2)} 상점</h2>${coinsHtml()}${btn(I("close"), "small", 'data-act="back"')}</div>
       <div class="tabs">${tabs.map(([k, n]) => btn(n, k === tab ? "tab on" : "tab", `data-act="tab" data-id="${k}"`)).join("")}</div>
       <div class="shop-body">
-        <div class="side"><canvas class="preview" width="96" height="84"></canvas><div class="side-nm"></div></div>
+        <div class="side"><canvas class="preview" width="96" height="84"></canvas><div class="side-nm"></div><div class="side-desc"></div></div>
         <div class="grid">${list}</div>
       </div>
     </div>
@@ -370,14 +385,22 @@ function showShop(tab = "skin") {
       drawIcon(x, TRAIL_ICON[id], 20, 22, 2);
     } else drawChicken(x, "idle", 0, t === "skin" ? id : save.skin, t === "hat" ? id : "none", 20, 39, { scale: 1.5, phase: 3 });
   });
+  const showEquipped = () => {
+    if (tab !== "skin") return;
+    const sk = SKINS.find((k) => k.id === save.skin);
+    $(".side-nm", ui).textContent = sk ? sk.name : "";
+    $(".side-desc", ui).textContent = skinFx(save.skin).desc;
+  };
+  showEquipped();
   ui.querySelectorAll(".card[data-id]").forEach((card) => {
     card.addEventListener("mouseenter", () => {
       if (!previewCv) return;
       previewCv.dataset[tab] = card.dataset.id;
       const arr = tab === "skin" ? SKINS : tab === "hat" ? HATS : TRAILS;
       $(".side-nm", ui).textContent = (arr.find((a) => a.id === card.dataset.id) || {}).name || "";
+      if (tab === "skin") $(".side-desc", ui).textContent = skinFx(card.dataset.id).desc;
     });
-    card.addEventListener("mouseleave", () => { if (previewCv) delete previewCv.dataset[tab]; });
+    card.addEventListener("mouseleave", () => { if (previewCv) delete previewCv.dataset[tab]; showEquipped(); });
   });
 }
 
