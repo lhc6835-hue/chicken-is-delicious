@@ -17,6 +17,33 @@ const ri = (a, b) => Math.floor(rnd(a, b + 1));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
+// the shield bubble, drawn per pixel once: a faint fill behind the chicken, a rim and shine in front
+const bubbles = {};
+function bubbleSprite(R) {
+  if (bubbles[R]) return bubbles[R];
+  const S = R * 2 + 4, c0 = S / 2;
+  const mk = () => { const c = document.createElement("canvas"); c.width = S; c.height = S; return c; };
+  const back = mk(), front = mk();
+  const b = back.getContext("2d"), f = front.getContext("2d");
+  const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const dx = x + 0.5 - c0, dy = y + 0.5 - c0, d = Math.hypot(dx, dy);
+    if (d > R + 1) continue;
+    const ang = Math.atan2(dy, dx);
+    if (d > R) { f.fillStyle = "rgba(20,60,140,0.75)"; f.fillRect(x, y, 1, 1); continue; }   // dark outer line
+    if (d > R - 2) { f.fillStyle = "#8ae8ff"; f.fillRect(x, y, 1, 1); continue; }             // bright rim
+    // fill: faint, denser toward the edge through a dither so it reads as a sphere
+    const edge = (d - (R - 9)) / 7;
+    b.fillStyle = "rgba(110,210,255,0.14)"; b.fillRect(x, y, 1, 1);
+    if (edge > 0 && BAY[(y % 4) * 4 + (x % 4)] / 16 < edge * 0.7) { f.fillStyle = "rgba(160,235,255,0.55)"; f.fillRect(x, y, 1, 1); }
+    // shine: a crescent at the top left
+    const sh = Math.abs(ang + 2.3);
+    if (d > R - 7 && d < R - 4 && sh < 0.5) { f.fillStyle = "rgba(255,255,255,0.9)"; f.fillRect(x, y, 1, 1); }
+    if (Math.hypot(dx + R * 0.35, dy + R * 0.45) < 2) { f.fillStyle = "#ffffff"; f.fillRect(x, y, 1, 1); }
+  }
+  return (bubbles[R] = { back, front });
+}
+
 const ITEM_LABEL = { booster: "부스터!", speed: "배속 x2!", magnet: "자석!", shield: "방패!", egg: "황금알!" };
 
 export class Game {
@@ -986,7 +1013,7 @@ export class Game {
       const f = Math.floor(this.time * 30);
       drawFxFrame(ctx, "jet", f, x - 12, p.y - 12, { rot: 0.3, lightK: p.holding ? 1 : 0.5, alpha: p.holding ? 1 : 0.8 });
     }
-    if (p.shield && p.alive) drawFxFrame(ctx, "field", Math.floor(this.time * 20), x, p.y + 2, { alpha: 0.75, lightK: 0.6 });
+    if (p.shield && p.alive) this.drawBubble(ctx, x, p.y, "back");
     if (p.magnet > 0 && p.alive) {
       ctx.fillStyle = "#ff8a9a";
       for (let i = 0; i < 6; i++) {
@@ -998,12 +1025,48 @@ export class Game {
     const flash = p.speed > 0 && Math.floor(this.time * 12) % 3 === 0;
     let rot = p.alive ? (p.booster > 0 ? -0.15 + p.vy * 0.0006 : p.gliding ? 0.08 : 0) : p.rot;
     drawChicken(ctx, pose, fr, s.skin, s.hat, x, p.y + (p.ground ? 0 : 0), { phase, rot, sx: p.sx, sy: p.sy, alpha: blink ? 0.35 : 1, flash });
+    if (p.shield && p.alive) this.drawBubble(ctx, x, p.y, "front");
     // glide stamina pips
     if (p.alive && !p.ground && p.booster <= 0 && p.glideLeft < this.glideMax - 0.01) {
       const k = clamp(p.glideLeft / this.glideMax, 0, 1);
-      ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(Math.round(x) - 11, Math.round(p.y) - 52, 22, 4);
-      ctx.fillStyle = k > 0.3 ? "#9be05a" : "#ff5a4a"; ctx.fillRect(Math.round(x) - 10, Math.round(p.y) - 51, Math.round(20 * k), 2);
+      const gy = Math.round(p.y) - (p.shield ? 58 : 52);
+      ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(Math.round(x) - 11, gy, 22, 4);
+      ctx.fillStyle = k > 0.3 ? "#9be05a" : "#ff5a4a"; ctx.fillRect(Math.round(x) - 10, gy + 1, Math.round(20 * k), 2);
     }
+  }
+
+  /** The shield: a pixel bubble wrapping the whole chicken (hat included), wobbling with its squash. */
+  drawBubble(ctx, x, footY, layer) {
+    const p = this.p, R = 28;
+    const img = bubbleSprite(R);
+    const cx = Math.round(x), cy = Math.round(footY - 20);
+    const wob = Math.sin(this.time * 7) * 0.025;
+    const sx = 1 + (p.sx - 1) * 0.5 + wob, sy = 1 + (p.sy - 1) * 0.5 - wob;
+    const w = Math.round(img.back.width * sx), h = Math.round(img.back.height * sy);
+    ctx.save();
+    if (layer === "back") {
+      ctx.globalAlpha = 0.9;
+      ctx.drawImage(img.back, cx - (w >> 1), cy - (h >> 1), w, h);
+    } else {
+      ctx.drawImage(img.front, cx - (w >> 1), cy - (h >> 1), w, h);
+      // a glint running round the rim and a few sparkles orbiting
+      ctx.globalCompositeOperation = "lighter";
+      const a = this.time * 2.4;
+      ctx.fillStyle = "#d4fbff";
+      for (let i = 0; i < 7; i++) {
+        const t = a + i * 0.07;
+        ctx.fillRect(Math.round(cx + Math.cos(t) * (R - 1) * sx) - 1, Math.round(cy + Math.sin(t) * (R - 1) * sy) - 1, 2, 2);
+      }
+      for (let i = 0; i < 3; i++) {
+        const t = -this.time * 1.6 + (i * Math.PI * 2) / 3;
+        const px = Math.round(cx + Math.cos(t) * (R + 3)), py = Math.round(cy + Math.sin(t) * (R + 3));
+        const tw = Math.floor(this.time * 10 + i) % 3 === 0;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(px, py - (tw ? 2 : 1), 1, tw ? 5 : 3);
+        ctx.fillRect(px - (tw ? 2 : 1), py, tw ? 5 : 3, 1);
+      }
+    }
+    ctx.restore();
   }
 
   drawPartsLayer(ctx, camX, layer) {
