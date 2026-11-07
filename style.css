@@ -151,3 +151,5 @@ h2 .pi { vertical-align: -5px; margin-right: 4px; }
 button.big .pi { vertical-align: -3px; }
 .toast .pi { vertical-align: -2px; }
 .pause-missions .pi { vertical-align: -1px; margin-right: 4px; }
+
+.side-desc { font-size: 7px; color: #fff3a6; text-shadow: 1px 1px var(--ink); padding: 0 4px; text-align: center; line-height: 1.4; min-height: 20px; }
