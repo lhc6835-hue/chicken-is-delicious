@@ -6,7 +6,6 @@ import { drawChicken, getProps, SKINS } from "./sprites.js";
 import { FxLayer, drawFxFrame } from "./fx.js";
 import { sfx, coinSound, jetLoop, setBgmRate, tapeStop, muffle, duck, windLoop, resetMix } from "./audio.js";
 import { upgradeValue } from "./data.js";
-import { ENEMIES, enemyBox, drawEnemy, drawLid, drawEgg } from "./enemies.js";
 
 const GROUND = 232;
 const PX = 110; // player's x on screen
@@ -69,8 +68,6 @@ export class Game {
     };
     this.glideMax = upgradeValue(s, "glide");
     this.solids = []; this.obs = []; this.coins = []; this.items = []; this.springs = [];
-    this.enemies = []; this.eggShots = []; this.lids = [];
-    this.attackCD = 0; this.killChain = 0; this.killT = 0;
     this.parts = []; this.pops = []; this.ghosts = [];
     this.fx.clear(); this.sfx2.clear();
     this.genX = -200;
@@ -78,7 +75,7 @@ export class Game {
     this.camX = -PX; this.camY = 0; this.camOff = PX;
     this.shake = 0; this.flash = 0; this.flashColor = "#fff"; this.hitstop = 0; this.slowmo = 1; this.zoom = 1;
     this.dist = 0; this.score = 0; this.coinCount = 0; this.combo = 0; this.comboT = 0; this.maxCombo = 0;
-    this.run = { boosters: 0, speeds: 0, smash: 0, glide: 0, jumps: 0, gems: 0, springs: 0, eggs: 0, crows: 0, kills: 0, eggHits: 0, stomps: 0 };
+    this.run = { boosters: 0, speeds: 0, smash: 0, glide: 0, jumps: 0, gems: 0, springs: 0, eggs: 0, crows: 0 };
     this.nextSpeedUp = 500;
     this.lastBiome = 0;
     this.revived = false;
@@ -147,14 +144,13 @@ export class Game {
   }
 
   genChunk() {
-    const solidsBefore = this.solids.length;
     const d = clamp(this.dist / 3500, 0, 1);
     const v = this.speedBase;
     const reach = v * 0.72; // horizontal reach of a full jump at this speed
     let x = this.genX;
     const roll = Math.random();
-    const kinds = ["flat", "pit", "obstacle", "platforms", "spring", "crows", "pitObstacle", "steps", "foes"];
-    const weights = [1.2, 1.4, 1.3 + d, 0.8 + d, 0.5, 0.3 + d * 0.9, d * 1.2, 0.6, this.dist > 100 ? 0.7 + d * 0.7 : 0];
+    const kinds = ["flat", "pit", "obstacle", "platforms", "spring", "crows", "pitObstacle", "steps"];
+    const weights = [1.2, 1.4, 1.3 + d, 0.8 + d, 0.5, 0.3 + d * 0.9, d * 1.2, 0.6];
     let t = 0, sum = weights.reduce((a, b) => a + b, 0), r = roll * sum, kind = kinds[0];
     for (let i = 0; i < kinds.length; i++) { t += weights[i]; if (r <= t) { kind = kinds[i]; break; } }
 
@@ -257,46 +253,8 @@ export class Game {
       }
       this.maybeItem(x + 60 + 2 * 110 + 35, GROUND - 40 - 2 * 34 - 40);
       x += len;
-    } else if (kind === "foes") {
-      // an open stretch with a pack of enemies and coins to grab between them
-      const len = ri(440, 560);
-      const s = this.addSolid(x, GROUND, len, "ground");
-      s.noFoes = true;
-      const n = ri(2, 3 + Math.round(d));
-      for (let i = 0; i < n; i++) this.spawnFoe(this.foeKind(true), x + 170 + i * ri(100, 130), s);
-      this.coinLine(x + 40, GROUND - 22, 6);
-      if (this.dist > 700 && Math.random() < 0.5) this.spawnHawk(x + len - 40);
-      x += len;
     }
     this.genX = x;
-    // a lone enemy now and then on ordinary ground
-    for (let i = solidsBefore; i < this.solids.length; i++) {
-      const s = this.solids[i];
-      if (s.kind !== "ground" || s.noFoes || s.w < 200 || s.x < 500 || this.dist < 60) continue;
-      if (Math.random() < 0.22 + d * 0.3) {
-        const fx = s.x + rnd(80, s.w - 50);
-        const busy = this.obs.some((o) => Math.abs(o.x - fx) < 70) || this.springs.some((o) => Math.abs(o.x - fx) < 60);
-        if (!busy) this.spawnFoe(this.foeKind(false), fx, s);
-      }
-    }
-    if (this.dist > 700 && kind !== "foes" && Math.random() < 0.08 + d * 0.12) this.spawnHawk(x - 60);
-  }
-
-  foeKind(pack) {
-    const pool = ["fox", "fox"];
-    if (this.dist > 280) pool.push("pot");
-    if (this.dist > 480) pool.push("fork");
-    if (pack && this.dist > 900) pool.push("pot", "fork");
-    return pick(pool);
-  }
-  spawnFoe(kind, x, ground) {
-    const d = ENEMIES[kind];
-    this.enemies.push({ kind, x, y: GROUND, hp: d.hp, t: Math.random(), ph: Math.random() * 6, ground: true, vx: 0, vy: 0, sq: 0, flash: 0,
-      minX: ground.x + 14, maxX: ground.x + ground.w - 14, hopT: rnd(0.3, 0.9) });
-  }
-  spawnHawk(x) {
-    const y = rnd(80, 120);
-    this.enemies.push({ kind: "hawk", x, y, by: y, hp: 1, t: 0, ph: Math.random() * 6, state: "fly", vx: 0, vy: 0, sq: 0, flash: 0 });
   }
 
   addObstacle(x, kind) {
@@ -322,17 +280,6 @@ export class Game {
     p.holding = false;
     if (this.state !== "run") return;
     if (p.booster <= 0 && p.vy < -200) p.vy *= 0.5;
-  }
-
-  /** Throws an egg forward. */
-  attack() {
-    const p = this.p;
-    if (this.state !== "run" || !p.alive || this.attackCD > 0) return;
-    this.attackCD = p.speed > 0 ? 0.16 : 0.32;
-    this.eggShots.push({ x: p.x + 12, y: p.y - 20, vx: this.worldSpeed + 430, vy: -110, rot: 0, t: 0 });
-    p.sx = 1.25; p.sy = 0.85;
-    sfx("whoosh2", { vol: 0.35, rate: 1.7 });
-    sfx("flap", { vol: 0.4, rate: 2.2 });
   }
 
   jump(power = 1) {
@@ -517,7 +464,6 @@ export class Game {
       }
     }
     this.collide();
-    this.stepFoes(dt);
   }
 
   land(s, vy) {
@@ -584,170 +530,6 @@ export class Game {
         this.sparkle(it.x, it.y, "#c8fff0", 14, 200);
         this.activate(it.kind);
       }
-    }
-  }
-
-  stepFoes(dt) {
-    const p = this.p;
-    // eggs in flight
-    for (const g of this.eggShots) {
-      const py = g.y;
-      g.t += dt; g.vy += 520 * dt; g.x += g.vx * dt; g.y += g.vy * dt; g.rot += 16 * dt;
-      for (const e of this.enemies) {
-        if (e.dead) continue;
-        const b = enemyBox(e);
-        if (g.x > b.x0 - 4 && g.x < b.x1 + 4 && g.y > b.y0 - 4 && g.y < b.y1 + 4) { this.hitFoe(e, "egg"); this.splat(g); break; }
-      }
-      if (g.done) continue;
-      for (const o of this.obs) {
-        if (o.dead) continue;
-        const oy = o.kind === "crow" ? o.y - o.h / 2 : o.y - o.h;
-        if (g.x > o.x - 2 && g.x < o.x + o.w + 2 && g.y > oy - 2 && g.y < oy + o.h + 2) {
-          if (o.kind === "crow") { o.dead = true; o.vy = -100; this.run.crows++; this.run.kills++; this.score += 100; this.worldText(o.x, o.y - 10, "+100", "#fff07a"); sfx("hit", { vol: 0.7, rate: 1.3 }); this.feathers(o.x + o.w / 2, o.y, 8, ["#2a2438", "#4a4458"]); }
-          this.splat(g);
-          break;
-        }
-      }
-      if (g.done) continue;
-      for (const s of this.solids) {
-        if (s.falling || g.x < s.x || g.x > s.x + s.w) continue;
-        if (py <= s.y && g.y >= s.y) { g.y = s.y; this.splat(g); break; }
-      }
-      if (g.t > 1.4) g.done = true;
-    }
-    this.eggShots = this.eggShots.filter((g) => !g.done);
-
-    for (const e of this.enemies) {
-      if (e.dead) {
-        e.vy += 1100 * dt; e.x += e.vx * dt; e.y += e.vy * dt; e.spin += 11 * dt;
-        continue;
-      }
-      if (e.x - this.camX > W + 40) continue; // asleep until it's on screen
-      e.t += dt;
-      e.flash -= dt;
-      e.sq = Math.max(0, e.sq - dt * 5);
-      if (e.kind === "hawk") { this.stepHawk(e, dt); }
-      else {
-        if (e.ground) {
-          if (e.kind === "fox") {
-            e.x = Math.max(e.minX, e.x - 70 * dt);
-            const gap = e.x - p.x;
-            if (!e.pounced && gap > 40 && gap < 135 && p.alive) {
-              e.pounced = true; e.ground = false; e.vy = -310; e.vx = -150;
-              sfx("jump", { vol: 0.35, rate: 0.6 });
-            }
-          } else if (e.kind === "fork") {
-            e.x = Math.max(e.minX, e.x - 42 * dt);
-          } else if (e.kind === "pot") {
-            e.hopT -= dt;
-            if (e.hopT < 0.12) e.sq = Math.min(1, e.sq + dt * 12); // crouch before the hop
-            if (e.hopT <= 0) {
-              e.ground = false; e.vy = e.lidOff ? -340 : -260; e.vx = e.lidOff ? -120 : -70;
-              e.hopT = e.lidOff ? rnd(0.4, 0.6) : rnd(0.8, 1.1);
-            }
-          }
-        } else {
-          e.vy += 1200 * dt; e.x += e.vx * dt; e.y += e.vy * dt;
-          if (e.x < e.minX) e.x = e.minX;
-          if (e.vy > 0 && e.y >= GROUND) {
-            const under = this.solids.some((s) => s.kind === "ground" && e.x > s.x && e.x < s.x + s.w);
-            if (under) {
-              e.y = GROUND; e.vy = 0; e.vx = 0; e.ground = true; e.sq = 1;
-              for (let i = 0; i < 4; i++) this.dust(e.x + rnd(-10, 10), GROUND, rnd(-50, 50), rnd(-30, -5));
-              if (e.kind === "pot" && e.x - this.camX < W) sfx("metal", { vol: 0.25, rate: 1.5 });
-            }
-          }
-          if (e.y > H + 40) e.gone = true;
-        }
-      }
-      if (!p.alive) continue;
-      // touching the chicken
-      const b = enemyBox(e);
-      if (p.x + 9 < b.x0 || p.x - 9 > b.x1 || p.y < b.y0 || p.y - 26 > b.y1) continue;
-      const fromAbove = p.vy > 40 && p.y < b.y0 + 10;
-      const safe = ENEMIES[e.kind].stomp;
-      if (fromAbove && safe) {
-        this.hitFoe(e, "stomp");
-        p.vy = p.holding ? -560 : -440; p.holdT = HOLD_T; p.glideLeft = this.glideMax; p.ground = null;
-        p.sx = 0.8; p.sy = 1.25;
-      } else if (p.speed > 0) this.hitFoe(e, "smash");
-      else if (p.invuln > 0) continue;
-      else if (p.shield) { this.breakShield(); this.hitFoe(e, "smash"); }
-      else { this.die(false); return; }
-    }
-    this.enemies = this.enemies.filter((e) => !e.gone && e.y < H + 80 && e.x > this.camX - 200);
-    for (const l of this.lids) { l.vy += 1100 * dt; l.x += l.vx * dt; l.y += l.vy * dt; l.rot += 14 * dt; }
-    this.lids = this.lids.filter((l) => l.y < H + 40);
-  }
-
-  stepHawk(e, dt) {
-    const p = this.p;
-    if (e.state === "fly") {
-      e.x -= 40 * dt; e.y = e.by + Math.sin(e.t * 3 + e.ph) * 6;
-      if (e.x - p.x < 170 && p.alive) { e.state = "aim"; e.aimT = 0.5; sfx("warn", { vol: 0.6, rate: 0.9, vary: 0 }); sfx("whoosh", { vol: 0.4, rate: 0.5 }); }
-    } else if (e.state === "aim") {
-      // hang in the air, matching the chicken's speed, then dive at where it will be
-      e.x += this.worldSpeed * dt * 0.85;
-      e.aimT -= dt;
-      if (e.aimT <= 0) {
-        const tx = p.x + this.worldSpeed * 0.4, ty = Math.min(GROUND - 12, p.y - 12);
-        const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy) || 1;
-        e.state = "dive"; e.vx = (dx / d) * 380; e.vy = (dy / d) * 380; e.t = 0;
-        sfx("die", { vol: 0.35, rate: 1.6 });
-      }
-    } else if (e.state === "dive") {
-      e.x += e.vx * dt; e.y += e.vy * dt;
-      if (e.y > GROUND - 14 || e.t > 1.2) { e.state = "leave"; e.vy = -220; e.vx = this.worldSpeed + 60; }
-    } else {
-      e.x += e.vx * dt; e.y += e.vy * dt;
-      if (e.y < -40) e.gone = true;
-    }
-  }
-
-  splat(g) {
-    g.done = true;
-    sfx("egg", { vol: 0.5, rate: 1.3 });
-    for (let i = 0; i < 9; i++) this.part({ x: g.x, y: g.y, vx: rnd(-120, 120), vy: rnd(-200, -40), g: 900, size: ri(2, 3), life: rnd(0.3, 0.6), color: pick(["#ffd84a", "#ffc030", "#fff4dc", "#ffffff"]), spin: true });
-  }
-
-  hitFoe(e, how) {
-    const d = ENEMIES[e.kind];
-    e.hp = how === "smash" ? 0 : e.hp - 1;
-    e.flash = 0.09;
-    const b = enemyBox(e), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
-    if (e.hp > 0) {
-      // the pot loses its lid and gets mad
-      if (e.kind === "pot") {
-        e.lidOff = true;
-        this.lids.push({ x: e.x, y: e.y - 28, vx: 110, vy: -420, rot: 0 });
-        this.worldText(e.x, e.y - 34, "뚜껑 날아감!", "#ffc23d");
-      }
-      sfx("metal", { vol: 0.8 }); sfx("hit", { vol: 0.5, rate: 1.4 });
-      this.fx.add("spark", cx, cy, { rot: how === "stomp" ? Math.PI / 2 : Math.PI });
-      this.hitstop = Math.max(this.hitstop, 0.04); this.addShake(2);
-      return;
-    }
-    e.dead = true; e.spin = 0; e.vx = how === "egg" ? 140 : 180; e.vy = -380;
-    this.killChain = this.killT > 0 ? this.killChain + 1 : 1;
-    this.killT = 1.8;
-    const pts = d.score * Math.min(this.killChain, 5) * (this.p.speed > 0 ? 2 : 1);
-    this.score += pts;
-    this.run.kills++;
-    if (how === "egg") this.run.eggHits++;
-    if (how === "stomp") this.run.stomps++;
-    this.fx.add("spark", cx, cy, { rot: how === "stomp" ? Math.PI / 2 : Math.PI });
-    if (this.killChain >= 2 || e.kind === "pot") this.fx.add("pow", cx, cy - 6, { alpha: 0.9 });
-    this.debris(cx, cy, d.colors, 12);
-    sfx("hit", { vol: 0.9 });
-    sfx(how === "stomp" ? "land" : "egg", { vol: 0.6, rate: 1.2 });
-    if (e.kind === "pot" || e.kind === "fork") sfx("metal", { vol: 0.6, rate: 0.8 });
-    this.hitstop = Math.max(this.hitstop, 0.06); this.addShake(4); duck(0.55, 0.005, 0.08, 0.3);
-    this.worldText(e.x, e.y - 40, `+${pts}`, "#fff07a");
-    for (let i = 0; i < 2 + Math.min(this.killChain, 4); i++) this.coins.push({ x: cx + i * 10, y: cy - 10 - i * 4, kind: "coin", ph: i, mag: true });
-    if (this.killChain >= 2) {
-      const names = ["", "", "DOUBLE!", "TRIPLE!", "QUAD!"];
-      this.popText(names[this.killChain] || `${this.killChain}연속 처치!`, "#ff86e6", 1);
-      sfx("combo", { vol: 0.6, rate: 0.9 + this.killChain * 0.1, vary: 0 });
     }
   }
 
@@ -842,7 +624,6 @@ export class Game {
     p.invuln = 2.5;
     // clear hazards right ahead
     for (const o of this.obs) if (o.x > p.x - 40 && o.x < p.x + 500) o.dead = true;
-    this.enemies = this.enemies.filter((e) => e.x < p.x - 40 || e.x > p.x + 500);
     this.state = "run";
     this.activate("booster", true);
     p.booster = 3;
@@ -862,8 +643,6 @@ export class Game {
       }
     }
     p.invuln = Math.max(0, p.invuln - dt);
-    this.attackCD = Math.max(0, this.attackCD - dt);
-    this.killT = Math.max(0, this.killT - dt);
     p.boostGrace = Math.max(0, p.boostGrace - dt);
     if (p.booster > 0) {
       this.warnBeep("booster", p.booster, dt);
@@ -1088,10 +867,7 @@ export class Game {
     this.drawCoins(ctx, camX);
     this.drawItems(ctx, camX);
     this.drawObstacles(ctx, camX);
-    for (const e of this.enemies) if (e.x - camX > -60 && e.x - camX < W + 60) drawEnemy(ctx, e, camX, this.time);
-    for (const l of this.lids) drawLid(ctx, l, camX);
     if (p.alive) this.drawChicken(camX);
-    for (const g of this.eggShots) drawEgg(ctx, g, camX);
     this.fx.draw(ctx, camX, 0);
     this.drawPartsLayer(ctx, camX, "front");
     // speed lines
