@@ -37,6 +37,6 @@ npm run bake       # assets/fx/*.png + src/fxdata.js
 ## 크레딧
 - 이펙트: [pixelfx](https://github.com/patch-gg/pixelfx) (MIT) 효과들을 스프라이트 시트로 구움
 - 배경음악: Juhani Junkala — *5 Chiptunes (Action)* / Retro Game Music Pack, OpenGameArt, CC0
-- 효과음: Kenney — Digital Audio, Impact Sounds, Interface Sounds, Music Jingles (kenney.nl), CC0
+- 효과음: Kenney — Digital Audio, Impact Sounds, Interface Sounds, RPG Audio, Music Jingles (kenney.nl), CC0 (코인 "띠링" 차임은 Web Audio로 합성)
 - 폰트: [Silkscreen](https://github.com/googlefonts/silkscreen) (OFL, 로고), [Galmuri](https://github.com/quiple/galmuri) (SIL OFL 1.1, `assets/fonts/GALMURI-OFL.md`)
 - 닭 도트: 제공된 레퍼런스 이미지를 기반으로 다시 찍음

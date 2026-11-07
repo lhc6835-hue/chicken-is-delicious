@@ -67,11 +67,32 @@ export function sfx(name, o = {}) {
 
 // semitone ladder for coin combos: climbing a major scale is what makes chains feel good
 const SCALE = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24];
-export function coinSound(combo, fast) {
+export function coinSound(combo, fast, gem) {
   const step = SCALE[Math.min(combo, SCALE.length - 1)];
-  const rate = Math.pow(2, step / 12) * 0.9 * (fast ? 1.12 : 1);
-  sfx("coin", { rate, vary: 0, vol: 0.7 });
-  sfx("coin2", { rate: rate * 0.5, vary: 0, vol: 0.35 });
+  const rate = Math.pow(2, step / 12) * (fast ? 1.12 : 1);
+  // 1) the classic two-note chime (B5 -> E6), climbing the scale with the combo
+  chime(988 * rate * (gem ? 1.5 : 1), 1319 * rate * (gem ? 1.5 : 1), gem ? 0.42 : 0.28);
+  // 2) real coins clinking (Kenney RPG Audio), 3) a glassy tink on top for sparkle
+  sfx("coinclink", { rate: 1 + Math.min(combo, 14) * 0.025, vol: 0.55, vary: 0.05 });
+  sfx("coin", { rate: rate * 0.9, vary: 0, vol: 0.3 });
+}
+
+/** A square-wave "ding-ding" through the effects bus, so volume, mute and muffling apply. */
+function chime(f1, f2, len) {
+  if (!ac || muted) return;
+  const t = now(), split = 0.055;
+  const osc = ac.createOscillator();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(f1, t);
+  osc.frequency.setValueAtTime(f2, t + split);
+  const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 5200;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.11, t + 0.004);
+  g.gain.setValueAtTime(0.09, t + split);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + split + len);
+  osc.connect(lp); lp.connect(g); g.connect(sfxGain);
+  osc.start(t); osc.stop(t + split + len + 0.02);
 }
 
 function noiseBuffer(sec, smooth) {

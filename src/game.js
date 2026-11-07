@@ -582,7 +582,8 @@ export class Game {
     if (c.kind === "gem") {
       this.coinCount += 5 * this.coinMult; this.score += 50 * mult; this.run.gems++;
       this.fx.add("gemBurst", c.x, c.y + 20);
-      sfx("gem", { vol: 0.7 });
+      sfx("gem", { vol: 0.55 });
+      coinSound(Math.min(this.combo - 1, 14), this.p.speed > 0, true);
       this.worldText(c.x, c.y - 12, "+5", "#ff86e6");
     } else {
       this.coinCount += 1 * this.coinMult; this.score += 10 * mult;
