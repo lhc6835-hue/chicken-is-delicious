@@ -33,7 +33,7 @@ button .dot { position: absolute; top: -5px; right: -5px; background: var(--red)
 @keyframes pulse { to { transform: scale(1.06); } }
 .row { display: flex; gap: 2px; justify-content: center; flex-wrap: wrap; }
 
-.ic-coin { display: inline-block; width: 7px; height: 7px; background: var(--gold); border: 1px solid #8a5410; border-radius: 50%; margin-right: 2px; vertical-align: -1px; box-shadow: inset -1px -1px 0 #d09820; }
+.ic-coin-old { display: inline-block; width: 7px; height: 7px; background: var(--gold); border: 1px solid #8a5410; border-radius: 50%; margin-right: 2px; vertical-align: -1px; box-shadow: inset -1px -1px 0 #d09820; }
 .coinpill { background: rgba(26, 14, 20, 0.75); color: var(--gold); padding: 2px 6px; border: 1px solid #8a5410; font-size: 10px; }
 
 .screen-title { display: flex; flex-direction: column; align-items: center; background: linear-gradient(rgba(20, 10, 30, 0.15), rgba(20, 10, 30, 0.35)); height: 100%; }
@@ -73,7 +73,7 @@ canvas.preview { width: 96px; height: 84px; image-rendering: pixelated; }
 .panel h2 { margin: 0 0 6px; color: var(--gold); font-size: 15px; text-shadow: 1px 1px var(--ink); }
 .panel p { margin: 4px 0 8px; font-size: 9px; line-height: 1.5; }
 .screen-help, .screen-stats, .screen-settings, .screen-missions, .screen-pause, .screen-over, .screen-gacha { display: flex; align-items: center; justify-content: center; height: 100%; background: rgba(10, 6, 16, 0.55); }
-.help { text-align: left; font-size: 9px; line-height: 1.7; margin: 0 0 8px; padding-left: 14px; }
+.help { text-align: left; font-size: 9px; line-height: 1.5; margin: 0 0 8px; padding-left: 14px; }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; margin-bottom: 8px; font-size: 9px; text-align: left; }
 .stats div { display: flex; justify-content: space-between; border-bottom: 1px dashed #5a3a5e; padding: 1px 0; }
 .stats b { color: var(--gold); }
@@ -141,3 +141,13 @@ canvas.eggcv { width: 160px; height: 110px; image-rendering: pixelated; }
 @keyframes titlepop { from { transform: scale(2.2); opacity: 0; } }
 .over-sub { font-size: 8px; opacity: 0.85; margin-bottom: 2px; }
 #loading { font-family: Silkscreen, monospace; letter-spacing: 2px; color: var(--gold); }
+
+/* pixel icons (src/icons.js) */
+.pi { display: inline-block; vertical-align: -2px; background-size: 100% 100%; background-repeat: no-repeat; image-rendering: pixelated; margin-right: 2px; flex: none; }
+button .pi { margin-right: 3px; }
+h2 .pi { vertical-align: -5px; margin-right: 4px; }
+.big-ic .pi { margin: 0; }
+.logo-kicker .pi { vertical-align: -1px; margin: 0 3px; }
+button.big .pi { vertical-align: -3px; }
+.toast .pi { vertical-align: -2px; }
+.pause-missions .pi { vertical-align: -1px; margin-right: 4px; }
