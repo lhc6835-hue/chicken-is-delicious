@@ -582,6 +582,8 @@ export class Game {
     p.y = s.y; p.vy = 0; p.ground = s; p.gliding = false; p.stompChain = 0;
     // the first landing after a booster or speed run: chicks ride the path up to here, then run on their own
     if (this.carryPending && p.booster <= 0 && p.speed <= 0) { this.carryPending = false; for (const c of this.chicks) c.safeUntil = p.x; }
+    // back on the ground after the jetpack: the chicks go back to copying the chicken's jumps
+    if (this.chickAuto && p.booster <= 0) { this.chickAuto = false; for (const c of this.chicks) c.lastJumpX = Math.max(c.lastJumpX, c.x); }
     p.glideLeft = this.glideMax;
     if (vy > 380) {
       p.sx = 1.35; p.sy = 0.7;
@@ -1036,9 +1038,14 @@ export class Game {
     const keep = p.x - (C.max + 3) * C.gap - 80;
     while (this.path.length > 2 && this.path[1].x < keep) this.path.shift();
     while (this.jumpLog.length && this.jumpLog[0].x < keep) this.jumpLog.shift();
-    if (p.booster > 0 || p.speed > 0) { this.carryPending = true; for (const c of this.chicks) c.safeUntil = Infinity; }
+    if (p.booster > 0 && !this.chickAuto) {
+      // jetpack: the chicks don't fly along; they run below and jump the obstacles themselves
+      this.chickAuto = true; this.carryPending = false;
+      for (const c of this.chicks) { if (c.safeUntil > c.x) c.safeUntil = -Infinity; c.jump = null; }
+    }
+    if (p.speed > 0) { this.carryPending = true; for (const c of this.chicks) c.safeUntil = Infinity; }
     // in a glide section the wind carries the chicks too (they can't glide); the chicken still has to make it
-    if (!p.ground && this.zones.some((z) => p.x >= z.x0 && p.x <= z.x1)) { this.carryPending = true; for (const c of this.chicks) c.safeUntil = Infinity; }
+    if (!p.ground && !this.chickAuto && this.zones.some((z) => p.x >= z.x0 && p.x <= z.x1)) { this.carryPending = true; for (const c of this.chicks) c.safeUntil = Infinity; }
     for (let i = 0; i < this.chicks.length; i++) {
       const c = this.chicks[i];
       c.off += ((i + 1) * C.gap - c.off) * Math.min(1, dt * 5);
@@ -1063,13 +1070,19 @@ export class Game {
         const reachOut = this.worldSpeed * 0.1 + 8;
         const bank = this.solids.find((q) => q.kind === "ground" && !q.falling && q.x > c.x - 2 && q.x - c.x < reachOut);
         if (bank) {
-          c.swim = false; c.vy = -440; c.sq = -0.6;
+          // hop out, and if the bank has obstacles right on it, over those too
+          c.swim = false; c.vy = -Math.max(440, this.autoJumpFrom(c, bank, SWIM_Y)); c.sq = -0.6;
           sfx("cointick", { vol: 0.25, rate: 0.8 });
           for (let i = 0; i < 6; i++) this.part({ x: c.x, y: GROUND + 28, vx: rnd(-50, 50), vy: rnd(-150, -60), g: 700, size: 2, life: 0.45, color: pick(["#8ae8ff", "#ffffff", "#2582d2"]) });
         } else if (Math.random() < dt * 10) {
           this.part({ x: c.x - 8, y: GROUND + 29, vx: -30, vy: 0, size: 2, life: 0.35, color: "#d4fbff" });
         }
         continue;
+      }
+      // on their own (jetpack): look ahead and jump what's coming, as high and as far as it needs
+      if (this.chickAuto) {
+        c.lastJumpX = Math.max(c.lastJumpX, c.x);
+        if (c.ground) { const v = this.autoJump(c); if (v) { c.vy = -v; c.ground = null; c.jump = null; c.sq = -0.6; } }
       }
       // replay the chicken's take-offs at the same spot (a chick gets a little coyote time too)
       let j = null;
@@ -1152,6 +1165,54 @@ export class Game {
     }
     if (this.chicks.some((c) => c.lost)) this.chicks = this.chicks.filter((c) => !c.lost);
     for (const c of this.chicks) c.lost = false;
+  }
+
+  /** Jump speed for a chick leaving the water to clear any obstacles just past the bank's edge. */
+  autoJumpFrom(c, bank, fromY) {
+    const v = this.worldSpeed, G = CHICK.grav;
+    let first = null;
+    for (const o of this.obs) if (!o.dead && o.kind !== "crow" && o.x >= bank.x - 4 && o.x - c.x < 160 && (!first || o.x < first.x)) first = o;
+    if (!first) return 0;
+    let end = first.x + first.w, h = first.h, grew = true;
+    while (grew) { grew = false; for (const o of this.obs) if (!o.dead && o.kind !== "crow" && o.x > first.x && o.x <= end + 10 && o.x + o.w > end) { end = o.x + o.w; h = Math.max(h, o.h); grew = true; } }
+    const rise = fromY - bank.y + h + 8;
+    const tIn = Math.max(0.05, (first.x - c.x - 6) / v), tOut = Math.max(tIn + 0.02, (end - c.x + 6) / v);
+    return Math.min(950, Math.max(rise / tIn + 0.5 * G * tIn, rise / tOut + 0.5 * G * tOut));
+  }
+
+  /** For a chick running on its own: the jump speed needed for what's just ahead, or 0. */
+  autoJump(c) {
+    const v = this.worldSpeed, G = CHICK.grav, ahead = 26 + v * 0.07;
+    // feet must clear height h (plus a margin) from the moment the chick reaches the obstacle
+    // (dIn px away) until it is past it (dOut): vy*t - G*t*t/2 >= h at both ends; and the jump has
+    // to be long enough to come down beyond dOut
+    const clear = (dIn, dOut, h) => {
+      const tIn = Math.max(0.05, dIn / v), tOut = Math.max(tIn + 0.02, dOut / v), hh = h + 8;
+      return Math.min(900, Math.max(hh / tIn + 0.5 * G * tIn, hh / tOut + 0.5 * G * tOut, (G * (dOut + 10) / v) / 2));
+    };
+    // a group of obstacles (brambles in a row count as one long one)
+    let first = null;
+    for (const o of this.obs) {
+      if (o.dead || o.kind === "crow") continue;
+      const d = o.x - (c.x + 6);
+      if (d >= 0 && d <= ahead && (!first || o.x < first.x)) first = o;
+    }
+    if (first) {
+      let end = first.x + first.w, h = first.h, grew = true;
+      while (grew) {
+        grew = false;
+        for (const o of this.obs) if (!o.dead && o.kind !== "crow" && o.x > first.x && o.x <= end + 10 && o.x + o.w > end) { end = o.x + o.w; h = Math.max(h, o.h); grew = true; }
+      }
+      return clear(first.x - (c.x + 6), end - (c.x - 6), h);
+    }
+    // the end of the ground with a gap after it
+    const g = c.ground, edge = g.x + g.w;
+    if (edge - c.x >= 0 && edge - c.x <= ahead && !this.solids.some((q) => q !== g && !q.falling && q.x <= edge + 2 && q.x + q.w > edge + 2 && Math.abs(q.y - g.y) < 40)) {
+      let far = null;
+      for (const q of this.solids) if (!q.falling && q.x > edge && q.x - edge < 420 && (!far || q.x < far.x)) far = q;
+      if (far) return clear(edge - c.x, far.x - c.x + 10, Math.max(0, g.y - far.y));
+    }
+    return 0;
   }
 
   /** A crow snatches one chick and climbs away with it (stomp the crow to get it back). */
