@@ -11,6 +11,7 @@ import { trailFx, drawRibbon } from "./trails.js";
 import { upgradeValue } from "./data.js";
 
 const GROUND = 232;
+const SWIM_Y = GROUND + 33; // a swimming chick's feet: half under the water line (GROUND + 28)
 const PX = 110; // player's x on screen
 const GRAV = 1500, JUMP_V = 440, HOLD_T = 0.2, MAX_FALL = 620;
 const PPM = 20; // pixels per meter
@@ -1019,6 +1020,22 @@ export class Game {
         c.jump = null;
         continue;
       }
+      // swimming across a pit: bob along on the water and hop out when the far bank comes up
+      if (c.swim) {
+        c.vy = 0; c.ground = null; c.jump = null;
+        c.y = SWIM_Y + Math.round(Math.sin(this.time * 9 + c.ph));
+        c.lastJumpX = Math.max(c.lastJumpX, c.x); // no replaying jumps from the water
+        const reachOut = this.worldSpeed * 0.1 + 8;
+        const bank = this.solids.find((q) => q.kind === "ground" && !q.falling && q.x > c.x - 2 && q.x - c.x < reachOut);
+        if (bank) {
+          c.swim = false; c.vy = -440; c.sq = -0.6;
+          sfx("cointick", { vol: 0.25, rate: 0.8 });
+          for (let i = 0; i < 6; i++) this.part({ x: c.x, y: GROUND + 28, vx: rnd(-50, 50), vy: rnd(-150, -60), g: 700, size: 2, life: 0.45, color: pick(["#8ae8ff", "#ffffff", "#2582d2"]) });
+        } else if (Math.random() < dt * 10) {
+          this.part({ x: c.x - 8, y: GROUND + 29, vx: -30, vy: 0, size: 2, life: 0.35, color: "#d4fbff" });
+        }
+        continue;
+      }
       // replay the chicken's take-offs at the same spot (a chick gets a little coyote time too)
       let j = null;
       for (const q of this.jumpLog) if (q.x > c.lastJumpX && q.x <= c.x) j = q;
@@ -1040,6 +1057,14 @@ export class Game {
         else if (c.jump && c.jump.hold !== null && !c.cut && c.jump.hold < C.holdT) { c.cut = true; if (c.vy < -200 * C.jumpPow) c.vy *= 0.5; }
         c.vy = Math.min(c.vy + g * dt, C.maxFall);   // no gliding for chicks
         c.y += c.vy * dt;
+        // chicks can't glide, but they can swim: a pit drops them in the water instead of taking them
+        if (c.y >= SWIM_Y && c.vy > 0) {
+          c.swim = true; c.y = SWIM_Y; c.vy = 0; c.jump = null;
+          sfx("cointick", { vol: 0.3, rate: 0.6 });
+          for (let i = 0; i < 7; i++) this.part({ x: c.x, y: GROUND + 28, vx: rnd(-60, 60), vy: rnd(-170, -70), g: 700, size: 2, life: 0.5, color: pick(["#8ae8ff", "#ffffff", "#2582d2"]) });
+          if (!this.swimHinted && this.save.stats.runs < 8) { this.swimHinted = true; this.worldText(c.x, GROUND - 8, "첨벙! 헤엄쳐 가요", "#8ae8ff"); }
+          continue;
+        }
         if (c.coyote > 0) c.coyote -= dt;
         if (c.vy >= 0) {
           for (const s of this.solids) {

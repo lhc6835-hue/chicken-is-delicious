@@ -63,6 +63,19 @@ export function drawChick(ctx, c, camX, time) {
   if (c.lost) { ctx.rotate(c.spin); ctx.globalAlpha = Math.max(0, 1 - c.lostT / 0.9); }
   if (c.sq) ctx.scale(1 + c.sq * 0.25, 1 - c.sq * 0.25);
   if (c.flash > 0) ctx.filter = "brightness(3)";
+  if (c.swim) {
+    // only the part above the water line shows, with a little paddle ripple either side
+    const line = 260 - Math.round(c.y); // water surface (GROUND + 28) in local coordinates
+    ctx.save();
+    ctx.beginPath(); ctx.rect(-40, -40, 80, 40 + line); ctx.clip();
+    ctx.drawImage(A.run[Math.floor(time * 14 + c.ph) % 2], -img.width, -img.height * CELL, img.width * CELL, img.height * CELL);
+    ctx.restore();
+    ctx.fillStyle = "#d4fbff";
+    const w = Math.floor(time * 8 + c.ph) % 2;
+    ctx.fillRect(-12 - w, line, 3, 1); ctx.fillRect(4 + w, line, 3, 1);
+    ctx.restore();
+    return;
+  }
   ctx.drawImage(img, -img.width, -img.height * CELL, img.width * CELL, img.height * CELL);
   ctx.restore();
 }
