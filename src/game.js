@@ -1108,7 +1108,7 @@ export class Game {
         let maxFall = C.maxFall;
         if (this.chickAuto && this.zones.some((z) => c.x >= z.x0 && c.x <= z.x1)) {
           // jetpack over a glide section: the wind buoys the chicks, so a low hop becomes a long float
-          if (c.vy > 0) { g = 380; maxFall = 70; c.windy = true; }
+          if (c.vy > 0) { g = 300; maxFall = 42; c.windy = true; }
         } else c.windy = false;
         c.vy = Math.min(c.vy + g * dt, maxFall);   // no gliding for chicks (except on the wind)
         c.y += c.vy * dt;
