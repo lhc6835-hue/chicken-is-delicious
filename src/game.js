@@ -1255,8 +1255,9 @@ export class Game {
     this.drawItems(ctx, camX);
     this.drawObstacles(ctx, camX);
     if (p.alive && this.save.trail !== "none") drawRibbon(ctx, this.save.trail, Math.round(p.x - camX - 8), (d) => this.trailY(d), this.time, 1, this.trailIn || 0);
-    for (const c of this.lostChicks) drawChick(ctx, c, camX, this.time);
-    for (let i = this.chicks.length - 1; i >= 0; i--) drawChick(ctx, this.chicks[i], camX, this.time);
+    const sk = this.save.skin;
+    for (const c of this.lostChicks) drawChick(ctx, c, camX, this.time, sk, c.ph * 10 | 0);
+    for (let i = this.chicks.length - 1; i >= 0; i--) drawChick(ctx, this.chicks[i], camX, this.time, sk, i);
     if (p.alive) this.drawChicken(camX);
     this.fx.draw(ctx, camX, 0);
     this.drawPartsLayer(ctx, camX, "front");
@@ -1433,7 +1434,7 @@ export class Game {
         if (o.dead) { ctx.rotate(o.spin * 0.6); if (o.squash) ctx.scale(1 + o.squash * 0.5, 1 - o.squash * 0.6); }
         ctx.drawImage(img, -img.width, -img.height, img.width * 2, img.height * 2);
         ctx.restore();
-        if (o.carry) drawChick(ctx, o.carry, camX, this.time);
+        if (o.carry) drawChick(ctx, o.carry, camX, this.time, this.save.skin, o.carry.ph * 10 | 0);
         continue;
       }
       const k = o.k || 1, w = o.img.width * k, h = o.img.height * k;
@@ -1571,7 +1572,7 @@ export class Game {
     txt(`${Math.floor(this.dist)}m`, 10, 18, "#ffffff", 16);
     txt(`점수 ${Math.floor(this.score).toLocaleString()}`, 10, 34, "#fff3a6", 12);
     if (this.chicks.length) {
-      const ic = chickIcon(), bump = this.chickBump > 0 ? 1 + this.chickBump * 0.6 : 1;
+      const ic = chickIcon(this.save.skin), bump = this.chickBump > 0 ? 1 + this.chickBump * 0.6 : 1;
       ctx.drawImage(ic, 10, 40, ic.width * 2, ic.height * 2);
       txt(`×${this.mult}`, 32, 55, this.chicks.length >= 10 ? "#ff86e6" : "#ffd84a", Math.round(14 * bump));
     }

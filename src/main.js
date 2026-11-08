@@ -5,6 +5,7 @@ import { Transitions } from "./transition.js";
 import { iconHtml as I, drawIcon, TRAIL_ICON } from "./icons.js";
 import { skinFx, drawPart, partIsFront, stepParts } from "./skinfx.js";
 import { trailFx, drawRibbon } from "./trails.js";
+import { drawChick } from "./chicks.js";
 import { initAudio, sfx, playBgm, setVolumes, setMuted, duckBgm, jetLoop, muffle, resetMix, windLoop, duck } from "./audio.js";
 import { SKINS, HATS, TRAILS, drawChicken } from "./sprites.js";
 import {
@@ -167,6 +168,13 @@ function drawPreview() {
   c.fillStyle = "rgba(0,0,0,0.25)";
   c.fillRect(previewCv.width / 2 - 20, previewCv.height - 10, 40, 4);
   if (trail !== "none") drawRibbon(c, trail, tx, tyAt, t, K, pv.tin);
+  if (previewCv.dataset.tab === "skin") {
+    // the matching chicks hop along behind
+    for (let i = 0; i < 2; i++) {
+      const hop = Math.max(0, Math.sin(t * 7 - i * 1.3)) * 4;
+      drawChick(c, { x: 24 - i * 17, y: fy - hop, ground: hop < 0.5, ph: i * 2, sq: 0, flash: 0 }, 0, t, skin, i);
+    }
+  }
   const dy = f.float ? Math.round(Math.sin(t * 4) * 3 - 4) : 0;
   drawChicken(c, "run", Math.floor(t * 9) % 4, skin, previewCv.dataset.hat || save.hat, fx, fy, { scale: 3, phase: Math.floor(t * 8), dy, eye: f.eye, glint: f.glint ? t : undefined, aura: f.aura, time: t });
   for (const q of pv.parts) if (partIsFront(q)) drawPart(c, q, Math.round(q.x), Math.round(q.y), t);
@@ -376,7 +384,7 @@ function showShop(tab = "skin") {
       <div class="shop-head"><h2>${I("basket", 2)} 상점</h2>${coinsHtml()}${btn(I("close"), "small", 'data-act="back"')}</div>
       <div class="tabs">${tabs.map(([k, n]) => btn(n, k === tab ? "tab on" : "tab", `data-act="tab" data-id="${k}"`)).join("")}</div>
       <div class="shop-body">
-        <div class="side"><canvas class="preview" width="96" height="84"></canvas><div class="side-nm"></div><div class="side-desc"></div></div>
+        <div class="side"><canvas class="preview" width="96" height="84" data-tab="${tab}"></canvas><div class="side-nm"></div><div class="side-desc"></div></div>
         <div class="grid">${list}</div>
       </div>
     </div>
