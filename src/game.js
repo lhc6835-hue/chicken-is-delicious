@@ -316,7 +316,8 @@ export class Game {
       const steps = [GROUND - 30, GROUND - 60, GROUND - 92];
       this.addSolid(x, GROUND, 110, "ground");
       x += 110;
-      for (const sy of steps) { this.addSolid(x, sy, 72, "ground"); this.coinLine(x + 18, sy - 22, 2, 18); x += 72; }
+      const stepW = Math.max(72, Math.round(reach * 0.62)); // keep a steady rhythm at any speed
+      for (const sy of steps) { this.addSolid(x, sy, stepW, "ground"); this.coinLine(x + 18, sy - 22, 2, 18); x += stepW; }
       const ledge = this.addSolid(x, GROUND - 92, 60, "ground");
       x += 60;
       const gap = Math.round(reach * rnd(2.1, 2.5));
@@ -1110,6 +1111,23 @@ export class Game {
               break;
             }
           }
+        }
+      }
+      if (!c.ground) {
+        for (const s of this.solids) {
+          if (s.kind !== "ground" || s.falling || s.y >= GROUND - 2) continue;
+          if (c.x + 4 > s.x && c.x - 4 < s.x + 10 && c.y > s.y + 1 && c.y < s.y + 48) {
+            // a little hop up onto the ledge
+            c.y = s.y; c.vy = -150; c.jump = null; c.sq = 0.5;
+            this.dust(c.x, s.y, -30, -20);
+            break;
+          }
+        }
+      } else {
+        // walking off a lower step straight into a higher one: climb it
+        for (const s of this.solids) {
+          if (s === c.ground || s.kind !== "ground" || s.falling || s.y >= c.ground.y - 2) continue;
+          if (c.x + 4 > s.x && c.x < s.x + 10 && c.ground.y - s.y < 48) { c.y = s.y; c.vy = -150; c.ground = null; c.jump = null; c.sq = 0.5; this.dust(c.x, s.y, -30, -20); break; }
         }
       }
       for (const sp of this.springs) {
