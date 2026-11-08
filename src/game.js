@@ -1,7 +1,7 @@
 // The run itself: an endless procedurally built farm course, the chicken's physics (variable jump,
 // glide, booster flight), pickups, hazards, and all the juice (hit-stop, shake, flashes, particles,
 // pixelfx sheets, combo pitch ladders).
-import { W, H, drawBackground, groundTiles, biomeAt, BIOME_LEN } from "./bg.js";
+import { W, H, drawBackground, groundTiles, biomeAt, BIOME_LEN, groundTint } from "./bg.js";
 import { drawChicken, getProps, SKINS } from "./sprites.js";
 import { FxLayer, drawFxFrame } from "./fx.js";
 import { sfx, coinSound, jetLoop, setBgmRate, tapeStop, muffle, duck, windLoop, resetMix, chirp } from "./audio.js";
@@ -1288,6 +1288,7 @@ export class Game {
 
   drawSolids(ctx, camX) {
     const T = groundTiles();
+    this._gt = groundTint(this.dist);
     for (const s of this.solids) {
       const x = Math.round(s.x - camX), y = Math.round(s.y);
       if (x > W || x + s.w < 0) continue;
@@ -1299,6 +1300,9 @@ export class Game {
         }
         ctx.fillStyle = "#3a2214";
         ctx.fillRect(x, y + 4, 2, H - y); ctx.fillRect(x + s.w - 2, y + 4, 2, H - y);
+        // the ground darkens a little with the light (sunset, night)
+        const gt = this._gt;
+        if (gt && gt[1] > 0.01) { ctx.save(); ctx.globalAlpha = gt[1] * 0.55; ctx.fillStyle = gt[0]; ctx.fillRect(x, y, s.w, H - y); ctx.restore(); }
         ctx.fillStyle = "#2a5a1a"; ctx.fillRect(x - 1, y, 2, 6); ctx.fillRect(x + s.w - 1, y, 2, 6);
       } else {
         let jx = 0, jy = 0;
