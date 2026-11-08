@@ -74,6 +74,7 @@ export class Game {
     this.solids = []; this.obs = []; this.coins = []; this.items = []; this.springs = [];
     this.chicks = []; this.lostChicks = []; this.jumpLog = []; this.path = []; this.carryPending = false; this.maxChicks = 0;
     this.updrafts = []; this.rings = []; this.zones = []; this.glideHinted = false;
+    this.crowQueue = []; this.crowWarns = []; this.crowHinted = false;
     this.parts = []; this.pops = []; this.ghosts = [];
     this.fx.clear(); this.sfx2.clear();
     this.genX = -200;
@@ -252,11 +253,10 @@ export class Game {
     } else if (kind === "crows") {
       const len = ri(320, 460);
       this.addSolid(x, GROUND, len, "ground");
+      // crows swoop in from behind, overtake the chick train (grabbing one chick if they touch it)
+      // and then the chicken, which has to hop them or stomp them
       const n = ri(1, 2 + Math.round(d));
-      for (let i = 0; i < n; i++) {
-        const cy = pick([GROUND - 26, GROUND - 34, GROUND - 90]);
-        this.obs.push({ x: x + 220 + i * 120, y: cy, w: 22, h: 12, kind: "crow", vx: -rnd(40, 90), ph: Math.random() * 6, by: cy });
-      }
+      for (let i = 0; i < n; i++) this.crowQueue.push({ at: x + 140 + i * ri(110, 160), y: pick([GROUND - 15, GROUND - 22, GROUND - 22, GROUND - 78]), warned: false });
       this.coinLine(x + 60, GROUND - 22, 6);
       x += len;
     } else if (kind === "pitObstacle") {
@@ -618,6 +618,7 @@ export class Game {
       const pad = o.kind === "thorns" ? 3 : 2;
       if (bx + bw < ox + pad || bx > ox + o.w - pad || by + bh < oy + pad || by > oy + o.h) continue;
       if (o.kind === "crow" && p.vy > -60 && p.y <= o.y + 7) { this.stompCrow(o); continue; }
+      if (o.carry) continue;
       if (p.speed > 0) { this.smash(o); continue; }
       if (p.invuln > 0) continue;
       if (p.shield) { this.breakShield(); this.smash(o, true); continue; }
@@ -661,6 +662,17 @@ export class Game {
 
   stompCrow(o) {
     const p = this.p;
+    if (o.carry) {
+      // rescued! the chick drops back and runs to the end of the line
+      const c = o.carry; o.carry = null;
+      c.dangle = false; c.lost = false; c.flash = 0.3;
+      c.off = (this.chicks.length + 1) * CHICK.gap + 30; c.safeUntil = p.x + 2; c.vy = 0; c.ground = null; c.swim = false;
+      this.chicks.push(c);
+      this.maxChicks = Math.max(this.maxChicks, this.chicks.length);
+      this.run.chicksLost = Math.max(0, this.run.chicksLost - 1);
+      chirp("happy");
+      this.worldText(o.x, o.y - 26, "구출!", "#9be05a");
+    }
     // squashed flat, then it drops out of the sky spinning
     o.dead = true; o.vy = 40; o.spin = 0; o.squash = 1;
     // holding the button bounces higher, so chains of crows are possible
@@ -826,7 +838,13 @@ export class Game {
 
     // crows flap along
     for (const o of this.obs) {
-      if (o.kind === "crow" && !o.dead) { o.x += o.vx * dt; o.y = o.by + Math.sin(this.time * 4 + o.ph) * 5; }
+      if (o.kind === "crow" && !o.dead) {
+        if (o.carry) {
+          o.x += o.vx * dt; o.vy -= 60 * dt; o.y += o.vy * dt;
+          o.carry.x = o.x + o.w / 2; o.carry.y = o.y + 20;
+          if (o.y < -50) { o.gone = true; }
+        } else { o.x += o.vx * dt; o.y = o.by + Math.sin(this.time * 4 + o.ph) * 5; }
+      }
       if (o.dead) {
         o.spin = (o.spin || 0) + dt * 12;
         if (o.flyVx !== undefined) { o.x += o.flyVx * dt; o.y += o.flyVy * dt; o.flyVy += 1200 * dt; }
@@ -903,7 +921,23 @@ export class Game {
     while (this.genX < this.camX + W + 500) this.genChunk();
     const left = this.camX - 200;
     this.solids = this.solids.filter((s) => s.x + s.w > left && s.y < H + 200);
-    this.obs = this.obs.filter((o) => o.x + o.w > left && o.y < H + 100);
+    this.obs = this.obs.filter((o) => !o.gone && o.x + o.w > left && o.y < H + 100 && !(o.kind === "crow" && o.x > this.camX + W + 140));
+    // crows waiting to swoop in from behind: a warning at the left edge first, then the crow
+    for (const q of this.crowQueue) {
+      if (!q.warned && p.x >= q.at - this.worldSpeed * 0.75) {
+        q.warned = true; this.crowWarns.push({ y: q.y, t: 0 });
+        sfx("warn", { vol: 0.45, rate: 0.75, vary: 0 });
+        if (!this.crowHinted && this.save.stats.runs < 8 && this.state === "run") { this.crowHinted = true; this.popText("까마귀가 뒤에서 와요! 병아리를 채가요", "#ff8a8a"); }
+      }
+      if (p.x >= q.at && this.state === "run") {
+        q.done = true;
+        this.obs.push({ x: this.camX - 34, y: q.y, by: q.y, w: 22, h: 12, kind: "crow", vx: this.worldSpeed + rnd(75, 105), ph: Math.random() * 6 });
+        sfx("flap", { vol: 0.35, rate: 0.9 });
+      }
+    }
+    this.crowQueue = this.crowQueue.filter((q) => !q.done && q.at > p.x - 400);
+    for (const w of this.crowWarns) w.t += dt;
+    this.crowWarns = this.crowWarns.filter((w) => w.t < 0.8);
     this.coins = this.coins.filter((c) => !c.taken && c.x > left);
     this.items = this.items.filter((c) => !c.taken && c.x > left);
     this.springs = this.springs.filter((c) => c.x > left);
@@ -1088,16 +1122,31 @@ export class Game {
       const bx0 = c.x - 6, bx1 = c.x + 6, by0 = c.y - 12, by1 = c.y;
       let hit = false;
       for (const o of this.obs) {
-        if (o.dead) continue;
+        if (o.dead || o.carry) continue;
         const oy = o.kind === "crow" ? o.y - o.h / 2 : o.y - o.h;
         const pad = o.kind === "thorns" ? 3 : 2;
         if (bx1 < o.x + pad || bx0 > o.x + o.w - pad || by1 < oy + pad || by0 > oy + o.h) continue;
+        if (o.kind === "crow") { this.grabChick(o, c); break; }
         hit = true; break;
       }
       if (hit) this.loseChick(c, "hit");
       else if (c.y > H + 10) this.loseChick(c, "fall");
     }
     if (this.chicks.some((c) => c.lost)) this.chicks = this.chicks.filter((c) => !c.lost);
+    for (const c of this.chicks) c.lost = false;
+  }
+
+  /** A crow snatches one chick and climbs away with it (stomp the crow to get it back). */
+  grabChick(o, c) {
+    c.lost = true; // leaves the train (filtered out below); drawn hanging from the crow
+    c.dangle = true; c.swim = false;
+    o.carry = c; o.vy = -150; o.vx = this.worldSpeed * 0.75;
+    this.run.chicksLost++;
+    chirp("sad");
+    sfx("flap", { vol: 0.5, rate: 1.4 });
+    this.feathers(c.x, c.y - 8, 4, ["#ffd84a", "#fff3a6"]);
+    this.worldText(c.x, c.y - 24, "삐약! 채갔다!", "#ff8a8a");
+    this.chickBump = 0.6;
   }
 
   loseChick(c, why) {
@@ -1219,6 +1268,7 @@ export class Game {
     this.drawPops(ctx, camX);
     ctx.restore();
 
+    this.drawCrowWarns(ctx);
     this.sfx2.draw(ctx, 0, 0);
     if (this.state !== "idle") this.drawHud(ctx);
     if (this.flash > 0) {
@@ -1379,6 +1429,7 @@ export class Game {
         if (o.dead) { ctx.rotate(o.spin * 0.6); if (o.squash) ctx.scale(1 + o.squash * 0.5, 1 - o.squash * 0.6); }
         ctx.drawImage(img, -img.width, -img.height, img.width * 2, img.height * 2);
         ctx.restore();
+        if (o.carry) drawChick(ctx, o.carry, camX, this.time);
         continue;
       }
       const k = o.k || 1, w = o.img.width * k, h = o.img.height * k;
@@ -1491,6 +1542,18 @@ export class Game {
       ctx.fillText(q.text, Math.round(x), Math.round(y));
     }
     ctx.globalAlpha = 1;
+  }
+
+  drawCrowWarns(ctx) {
+    for (const w of this.crowWarns) {
+      if (Math.floor(w.t * 10) % 2) continue;
+      const y = Math.round(w.y);
+      ctx.fillStyle = "#1a0e14"; ctx.fillRect(3, y - 9, 10, 18);
+      ctx.fillStyle = "#ff4c2d"; ctx.fillRect(4, y - 8, 8, 16);
+      ctx.fillStyle = "#fff4dc"; ctx.fillRect(7, y - 6, 2, 7); ctx.fillRect(7, y + 3, 2, 2);
+      // a little arrow pointing the way it will fly
+      ctx.fillStyle = "#ff4c2d"; ctx.fillRect(15, y - 3, 2, 6); ctx.fillRect(17, y - 2, 2, 4); ctx.fillRect(19, y - 1, 2, 2);
+    }
   }
 
   drawHud(ctx) {

@@ -60,7 +60,8 @@ export function drawChick(ctx, c, camX, time) {
   const img = c.ground ? A.run[Math.floor(time * 12 + c.ph) % 2] : A.jump;
   ctx.save();
   ctx.translate(Math.round(c.x - camX), Math.round(c.y));
-  if (c.lost) { ctx.rotate(c.spin); ctx.globalAlpha = Math.max(0, 1 - c.lostT / 0.9); }
+  if (c.dangle) ctx.rotate(Math.sin(time * 14) * 0.35); // wriggling in the crow's claws
+  else if (c.lost) { ctx.rotate(c.spin); ctx.globalAlpha = Math.max(0, 1 - c.lostT / 0.9); }
   if (c.sq) ctx.scale(1 + c.sq * 0.25, 1 - c.sq * 0.25);
   if (c.flash > 0) ctx.filter = "brightness(3)";
   if (c.swim) {
