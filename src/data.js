@@ -32,6 +32,8 @@ export const MISSION_TYPES = [
   { key: "springs", run: false, text: (n) => `스프링 ${n}번 밟기`, goals: [5, 15, 30] },
   { key: "eggs", run: false, text: (n) => `황금알 ${n}개 깨기`, goals: [1, 3, 6, 10] },
   { key: "crows", run: false, text: (n) => `까마귀 ${n}마리 밟기`, goals: [3, 10, 25] },
+  { key: "updrafts", run: false, text: (n) => `상승기류 ${n}번 타기`, goals: [3, 10, 25, 50] },
+  { key: "rings", run: false, text: (n) => `깃털 고리 ${n}개 통과하기`, goals: [3, 10, 25, 50] },
   { key: "maxChicks", run: true, text: (n) => `병아리 ${n}마리 데리고 달리기`, goals: [3, 5, 8, 12, 15] },
   { key: "chicks", run: false, text: (n) => `병아리 총 ${n}마리 부화시키기`, goals: [5, 15, 40, 80, 150] },
 ];
@@ -46,7 +48,7 @@ export function defaultSave() {
     up: { booster: 0, speed: 0, magnet: 0, glide: 0, luck: 0 },
     items: { startShield: 0, startBoost: 0, doubleCoin: 0 },
     missions: [], missionTier: {},
-    stats: { runs: 0, coinsTotal: 0, distTotal: 0, boosters: 0, speeds: 0, smash: 0, glide: 0, jumps: 0, gems: 0, springs: 0, eggs: 0, crows: 0, chicks: 0, chicksLost: 0, deaths: 0, missionsDone: 0 },
+    stats: { runs: 0, coinsTotal: 0, distTotal: 0, boosters: 0, speeds: 0, smash: 0, glide: 0, jumps: 0, gems: 0, springs: 0, eggs: 0, crows: 0, chicks: 0, chicksLost: 0, updrafts: 0, rings: 0, deaths: 0, missionsDone: 0 },
     daily: { last: "", streak: 0 },
     settings: { sfx: 0.8, bgm: 0.5, shake: true, muted: false, fullscreen: true },
   };

@@ -185,6 +185,8 @@ const letters = (w) => [...w].map((ch, i) => `<span style="--i:${i}" data-t="${c
 
 function showTitle() {
   resetMix();
+  // a fresh, empty field behind the title: no leftover coins, crows or celebration effects
+  if (game.state !== "idle") { game.reset(); game.coins = []; }
   game.state = "idle";
   jetLoop(false);
   playBgm("title");
@@ -271,6 +273,7 @@ function showHelp() {
       <ul class="help">
         <li><b>스페이스 / 터치</b> : 점프. 길게 누를수록 높이 뛰어요.</li>
         <li><b>공중에서 꾹 누르기</b> : 날개를 퍼덕이며 천천히 활공해요 (머리 위 게이지).</li>
+        <li><b>활공 구간</b> : 넓은 협곡의 바람 구멍 위에서 꾹 누르면 위로 떠올라요. 가시덤불 밭과 절벽은 활공으로 넘어가요. 하늘색 깃털 고리를 지나면 활공 게이지가 꽉 차요. (이 구간에선 병아리도 바람을 타요)</li>
         <li>${I("chick")} <b>작은 알</b> : 먹으면 병아리가 부화해서 뒤를 따라와요. 병아리 수만큼 점수 배율이 올라가요 (최대 ×16)!</li>
         <li><b>병아리</b>는 닭이 뛴 자리에서 똑같이 뛰지만 점프가 낮고 활공을 못 해요. 아슬아슬하게 넘으면 병아리가 장애물에 부딪히거나 구덩이에 빠져요. 닭이 부딪히면 무조건 꼬꼬 다운!</li>
         <li>${I("rocket")} <b>부스터</b> : 누르고 있으면 하늘로 날아올라요. 하늘 코인 길을 따라가요!</li>
@@ -291,7 +294,7 @@ function showStats() {
   const rows = [
     ["최고 점수", save.best.toLocaleString()], ["최장 거리", `${save.bestDist}m`], ["플레이 횟수", st.runs], ["총 달린 거리", `${Math.floor(st.distTotal).toLocaleString()}m`],
     ["모은 코인", st.coinsTotal.toLocaleString()], ["점프", st.jumps], ["활공 시간", `${Math.floor(st.glide)}초`], ["부스터 사용", st.boosters],
-    ["배속 사용", st.speeds], ["부순 장애물", st.smash], ["밟은 까마귀", st.crows], ["부화시킨 병아리", st.chicks || 0], ["잃은 병아리", st.chicksLost || 0], ["깬 황금알", st.eggs], ["완료한 미션", st.missionsDone],
+    ["배속 사용", st.speeds], ["부순 장애물", st.smash], ["밟은 까마귀", st.crows], ["부화시킨 병아리", st.chicks || 0], ["탄 상승기류", st.updrafts || 0], ["통과한 고리", st.rings || 0], ["잃은 병아리", st.chicksLost || 0], ["깬 황금알", st.eggs], ["완료한 미션", st.missionsDone],
   ];
   setScreen("stats", `
     <div class="panel wide">
@@ -667,7 +670,7 @@ function showOver() {
       el.classList.add("pop");
       game.sfx2.add("newBest", W / 2, 120, { clip: 62 });
       game.sfx2.add("firework", 110, 130);
-      setTimeout(() => game.sfx2.add("firework", 370, 120), 350);
+      setTimeout(() => { if (screen === "over") game.sfx2.add("firework", 370, 120); }, 350);
       game.sfx2.add("confetti", W / 2, 200);
     }
   };

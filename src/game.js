@@ -72,6 +72,7 @@ export class Game {
     this.glideMax = upgradeValue(s, "glide");
     this.solids = []; this.obs = []; this.coins = []; this.items = []; this.springs = [];
     this.chicks = []; this.lostChicks = []; this.jumpLog = []; this.path = []; this.carryPending = false; this.maxChicks = 0;
+    this.updrafts = []; this.rings = []; this.zones = []; this.glideHinted = false;
     this.parts = []; this.pops = []; this.ghosts = [];
     this.fx.clear(); this.sfx2.clear();
     this.genX = -200;
@@ -79,7 +80,7 @@ export class Game {
     this.camX = -PX; this.camY = 0; this.camOff = PX;
     this.shake = 0; this.flash = 0; this.flashColor = "#fff"; this.hitstop = 0; this.slowmo = 1; this.zoom = 1;
     this.dist = 0; this.score = 0; this.coinCount = 0; this.combo = 0; this.comboT = 0; this.maxCombo = 0;
-    this.run = { boosters: 0, speeds: 0, smash: 0, glide: 0, jumps: 0, gems: 0, springs: 0, eggs: 0, crows: 0, chicks: 0, chicksLost: 0 };
+    this.run = { boosters: 0, speeds: 0, smash: 0, glide: 0, jumps: 0, gems: 0, springs: 0, eggs: 0, crows: 0, chicks: 0, chicksLost: 0, updrafts: 0, rings: 0 };
     this.nextSpeedUp = 500;
     this.lastBiome = 0;
     this.revived = false;
@@ -171,10 +172,13 @@ export class Game {
     const reach = v * 0.72; // horizontal reach of a full jump at this speed
     let x = this.genX;
     const roll = Math.random();
-    const kinds = ["flat", "pit", "obstacle", "platforms", "spring", "crows", "pitObstacle", "steps"];
-    const weights = [1.2, 1.4, 1.3 + d, 0.8 + d, 0.5, 0.75 + d * 0.6, d * 1.2, 0.6];
+    const kinds = ["flat", "pit", "obstacle", "platforms", "spring", "crows", "pitObstacle", "steps", "updraft", "thornfield", "cliff"];
+    // the last three need a glide; they come in once the player has had a little room to learn
+    const glideW = (from) => (this.dist > from ? 0.55 + d * 0.5 : 0);
+    const weights = [1.2, 1.4, 1.3 + d, 0.8 + d, 0.5, 0.75 + d * 0.6, d * 1.2, 0.6, glideW(120), glideW(240), glideW(380)];
     let t = 0, sum = weights.reduce((a, b) => a + b, 0), r = roll * sum, kind = kinds[0];
     for (let i = 0; i < kinds.length; i++) { t += weights[i]; if (r <= t) { kind = kinds[i]; break; } }
+    if (this.forceKind) kind = this.forceKind; // test hook
 
     if (kind === "flat") {
       const len = ri(220, 380);
@@ -275,8 +279,60 @@ export class Game {
       }
       this.maybeItem(x + 60 + 2 * 110 + 35, GROUND - 40 - 2 * 34 - 40);
       x += len;
+    } else if (kind === "updraft") {
+      // a canyon too wide to jump or glide across, with wind vents to ride up on
+      const lead = ri(110, 150);
+      this.addSolid(x, GROUND, lead, "ground");
+      x += lead;
+      // the last vent always sits ~230 px before the far side, so riding it all the way up always
+      // reaches land; a long canyon gets a first vent near the near side too
+      const gap = ri(400, d > 0.4 ? 620 : 480);
+      const vents = gap > 470 ? [170, gap - 230] : [gap - 230];
+      for (const off of vents) {
+        const ux = Math.round(x + off);
+        this.updrafts.push({ x: ux, w: 64, top: 64, ph: Math.random() * 100 });
+        this.coinLine(ux - 9, 150, 2, 18);
+        this.coinLine(ux - 9, 100, 2, 18);
+      }
+      this.rings.push({ x: Math.round(x + vents[vents.length - 1] + 60), y: 58 });
+      this.zones.push({ x0: x - 60, x1: x + gap + 20 });
+      x += gap;
+      const tail = ri(190, 240);
+      this.addSolid(x, GROUND, tail, "ground");
+      x += tail;
+    } else if (kind === "thornfield") {
+      // a long bed of brambles: one jump lands in it, a jump and a glide carries over
+      const len = Math.round(reach * rnd(1.25, 1.55) / 24) * 24 + 330;
+      this.addSolid(x, GROUND, len, "ground");
+      const f0 = x + 150, f1 = x + len - 150;
+      for (let bx = f0; bx < f1; bx += 24) this.addObstacle(bx, "thorns");
+      this.coinArc(f0 - 20, GROUND - 40, f1 - f0 + 40, 60, 10);
+      this.rings.push({ x: Math.round((f0 + f1) / 2), y: GROUND - 116 });
+      this.zones.push({ x0: f0 - 120, x1: f1 + 10 });
+      x += len;
+    } else if (kind === "cliff") {
+      // climb a staircase of cliffs, then glide down to ground far away
+      const steps = [GROUND - 30, GROUND - 60, GROUND - 92];
+      this.addSolid(x, GROUND, 110, "ground");
+      x += 110;
+      for (const sy of steps) { this.addSolid(x, sy, 72, "ground"); this.coinLine(x + 18, sy - 22, 2, 18); x += 72; }
+      const ledge = this.addSolid(x, GROUND - 92, 60, "ground");
+      x += 60;
+      const gap = Math.round(reach * rnd(2.1, 2.5));
+      this.coinArc(x, GROUND - 120, gap, 30, 9);
+      this.rings.push({ x: Math.round(x + gap * 0.5), y: 52 });
+      this.zones.push({ x0: ledge.x, x1: x + gap + 10 });
+      x += gap;
+      const tail = ri(190, 240);
+      this.addSolid(x, GROUND, tail, "ground");
+      x += tail;
     }
     this.genX = x;
+  }
+
+  updraftAt(x) {
+    for (const u of this.updrafts) if (Math.abs(x - u.x) < u.w / 2) return u;
+    return null;
   }
 
   addObstacle(x, kind) {
@@ -404,6 +460,7 @@ export class Game {
     this.emitTrail(dt);
     this.updateParts(dt);
     this.fx.update(dt);
+    this.sfx2.update(dt);
   }
 
   step(dt) {
@@ -434,6 +491,13 @@ export class Game {
       else { p.vy += 1000 * dt; p.vy = Math.min(p.vy, 230); }
       if (p.y < 74) { p.y = 74; p.vy = Math.max(p.vy, 0); }
       p.gliding = false;
+    } else if (!p.ground && p.holding && this.updraftAt(p.x) && p.y > 64) {
+      const u = this.updraftAt(p.x);
+      p.vy = Math.max(p.vy - 3400 * dt, -290);
+      p.gliding = true; p.holdT = HOLD_T;
+      p.glideLeft = this.glideMax; // the wind refills the wings
+      this.run.glide += dt;
+      if (!u.ridden) { u.ridden = true; this.run.updrafts++; sfx("whoosh", { vol: 0.5, rate: 0.7 }); }
     } else if (!p.ground) {
       let g = GRAV;
       if (p.vy < 0 && p.holding && p.holdT < HOLD_T) { g *= 0.35; p.holdT += dt; }
@@ -458,8 +522,19 @@ export class Game {
         if (p.x + 7 < s.x || p.x - 7 > s.x + s.w) continue;
         const top = s.y;
         if (prevY <= top + 2 + Math.max(0, s.dy) && p.y >= top - 0.5) { this.land(s, p.vy); break; }
-        // ledge assist: clipped the lip of a ground block
-        if (s.kind === "ground" && p.y > top && p.y < top + 9 && prevY < top + 9) { this.land(s, p.vy); break; }
+        // ledge assist: clipped the lip of a ground block (more forgiving on raised cliffs)
+        const lip = s.y < GROUND - 2 ? 16 : 9;
+        if (s.kind === "ground" && p.y > top && p.y < top + lip && prevY < top + lip) { this.land(s, p.vy); break; }
+      }
+    }
+    // running into the face of a raised cliff below its lip is a crash, not a walk through rock
+    if (!p.ground) {
+      for (const s of this.solids) {
+        if (s.kind !== "ground" || s.y >= GROUND - 2 || s.falling) continue;
+        if (p.x + 7 > s.x && p.x - 7 < s.x + 6 && p.y > s.y + 16 && p.y - 24 < s.y + s.h) {
+          if (p.speed > 0 || p.invuln > 0) { p.y = s.y; p.vy = 0; this.land(s, 0); break; }
+          this.die(false); return;
+        }
       }
     }
     if (p.coyote > 0) p.coyote -= dt;
@@ -547,6 +622,19 @@ export class Game {
       if (p.shield) { this.breakShield(); this.smash(o, true); continue; }
       this.die(false, o);
       return;
+    }
+    // feather rings: fly through one for coins and a full glide gauge
+    for (const r of this.rings) {
+      if (r.taken) continue;
+      if (Math.abs(p.x - r.x) < 8 && Math.abs(p.y - 14 - r.y) < 19) {
+        r.taken = true; r.t = 0;
+        this.run.rings++;
+        p.glideLeft = this.glideMax;
+        this.coinCount += 3 * this.coinMult; this.addScore(80);
+        coinSound(10, false, true); sfx("levelup", { vol: 0.4, rate: 1.4 });
+        this.sparkle(r.x, r.y, "#d4fbff", 14, 170);
+        this.worldText(r.x, r.y - 22, "활공 충전! +3", "#8ae8ff");
+      }
     }
     // coins
     const cx = p.x, cy = p.y - 14;
@@ -818,6 +906,14 @@ export class Game {
     this.coins = this.coins.filter((c) => !c.taken && c.x > left);
     this.items = this.items.filter((c) => !c.taken && c.x > left);
     this.springs = this.springs.filter((c) => c.x > left);
+    this.updrafts = this.updrafts.filter((u) => u.x > left);
+    this.rings = this.rings.filter((r) => r.x > left && (!r.taken || r.t < 0.5));
+    this.zones = this.zones.filter((z) => z.x1 > left);
+    for (const r of this.rings) if (r.taken) r.t += dt;
+    if (!this.glideHinted && this.state === "run" && this.save.stats.runs < 6) {
+      const z = this.zones.find((zz) => zz.x0 - p.x < 160 && zz.x0 - p.x > 0);
+      if (z) { this.glideHinted = true; this.popText(this.updraftAt(z.x0 + 200) || this.updrafts.some((u) => u.x > z.x0 && u.x < z.x1) ? "공중에서 꾹! 바람을 타고 올라가요" : "꾹 눌러 활공해서 넘어가요!", "#8ae8ff"); }
+    }
 
     this.updateParts(dt);
     this.fx.update(dt);
@@ -905,6 +1001,8 @@ export class Game {
     while (this.path.length > 2 && this.path[1].x < keep) this.path.shift();
     while (this.jumpLog.length && this.jumpLog[0].x < keep) this.jumpLog.shift();
     if (p.booster > 0 || p.speed > 0) { this.carryPending = true; for (const c of this.chicks) c.safeUntil = Infinity; }
+    // in a glide section the wind carries the chicks too (they can't glide); the chicken still has to make it
+    if (!p.ground && this.zones.some((z) => p.x >= z.x0 && p.x <= z.x1)) { this.carryPending = true; for (const c of this.chicks) c.safeUntil = Infinity; }
     for (let i = 0; i < this.chicks.length; i++) {
       const c = this.chicks[i];
       c.off += ((i + 1) * C.gap - c.off) * Math.min(1, dt * 5);
@@ -946,7 +1044,8 @@ export class Game {
         if (c.vy >= 0) {
           for (const s of this.solids) {
             if (s.falling || c.x + 4 < s.x || c.x - 4 > s.x + s.w) continue;
-            if (prevY <= s.y + 2 + Math.max(0, s.dy) && c.y >= s.y - 0.5) {
+            const lipC = s.kind === "ground" && s.y < GROUND - 2 && c.y > s.y && c.y < s.y + 16 && prevY < s.y + 16;
+            if ((prevY <= s.y + 2 + Math.max(0, s.dy) && c.y >= s.y - 0.5) || lipC) {
               if (c.vy > 260) c.sq = 0.6;
               c.y = s.y; c.vy = 0; c.ground = s; c.jump = null;
               break;
@@ -1074,7 +1173,9 @@ export class Game {
 
     if (!p.alive) this.drawChicken(camX);
     this.drawSolids(ctx, camX);
+    this.drawUpdrafts(ctx, camX);
     this.drawSprings(ctx, camX);
+    this.drawRings(ctx, camX);
     this.drawPartsLayer(ctx, camX, "back");
     this.drawCoins(ctx, camX);
     this.drawItems(ctx, camX);
@@ -1143,6 +1244,57 @@ export class Game {
         }
         ctx.globalAlpha = 1;
       }
+    }
+  }
+
+  drawUpdrafts(ctx, camX) {
+    for (const u of this.updrafts) {
+      const x = Math.round(u.x - camX), half = u.w / 2;
+      if (x < -40 || x > W + 40) continue;
+      // the column of rising air
+      const g = ctx.createLinearGradient(0, u.top, 0, GROUND + 30);
+      g.addColorStop(0, "rgba(220,250,255,0)"); g.addColorStop(1, "rgba(220,250,255,0.28)");
+      ctx.fillStyle = g; ctx.fillRect(x - half, u.top, u.w, GROUND + 30 - u.top);
+      // streaks racing up, curling a little as they go
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      for (let i = 0; i < 9; i++) {
+        const span = GROUND + 30 - u.top;
+        const yy = GROUND + 30 - ((this.time * 150 + i * 41 + u.ph) % span);
+        const xx = x - half + 4 + ((i * 11) % (u.w - 8)) + Math.round(Math.sin(this.time * 6 + i) * 2);
+        const a = Math.min(1, (yy - u.top) / 40);
+        ctx.globalAlpha = a * 0.8;
+        ctx.fillRect(xx, Math.round(yy), 1, 7);
+      }
+      ctx.globalAlpha = 1;
+      // a stone stub with a fan at the water line
+      const by = GROUND + 30;
+      ctx.fillStyle = "#2a2a3a"; ctx.fillRect(x - half - 2, by - 2, u.w + 4, H - by + 2);
+      ctx.fillStyle = "#8a8aa0"; ctx.fillRect(x - half, by, u.w, H - by);
+      ctx.fillStyle = "#b8b8cc"; ctx.fillRect(x - half, by, u.w, 2);
+      const spin = Math.floor(this.time * 20) % 2;
+      ctx.fillStyle = "#1e1c27"; ctx.fillRect(x - half + 3, by - 5, u.w - 6, 4);
+      ctx.fillStyle = "#d0d4e0";
+      for (let i = 0; i < 4; i++) ctx.fillRect(x - half + 5 + i * 7 + spin * 3, by - 4, 3, 2);
+      // leaves riding the column now and then
+      if (Math.random() < 0.08) this.part({ x: u.x + rnd(-12, 12), y: by - 6, vx: rnd(-10, 10), vy: rnd(-160, -110), drag: 0.3, size: 2, life: 1.1, color: pick(["#9be05a", "#e8c050", "#ffffff"]), kind: "feather", ph: Math.random() * 6 });
+    }
+  }
+
+  drawRings(ctx, camX) {
+    for (const r of this.rings) {
+      const x = Math.round(r.x - camX), y = Math.round(r.y + (r.taken ? 0 : Math.sin(this.time * 3 + r.x) * 2));
+      if (x < -30 || x > W + 30) continue;
+      const k = r.taken ? 1 + r.t * 3 : 1, a = r.taken ? Math.max(0, 1 - r.t * 2) : 1;
+      ctx.save();
+      ctx.globalAlpha = a;
+      // an upright ring of feathers: dark outline, cyan band, white glint
+      for (const [col, rw, rh] of [["#1a0e14", 8, 17], ["#5ad8ff", 7, 16], ["#d4fbff", 6, 15]]) {
+        ctx.strokeStyle = col; ctx.lineWidth = col === "#1a0e14" ? 4 : 2;
+        ctx.beginPath(); ctx.ellipse(x, y, rw * k, rh * k, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(x - 5, y - 12, 2, 3);
+      if (!r.taken) { ctx.globalAlpha = 0.25 + Math.sin(this.time * 5) * 0.1; ctx.fillStyle = "#d4fbff"; ctx.beginPath(); ctx.ellipse(x, y, 5, 13, 0, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
     }
   }
 
