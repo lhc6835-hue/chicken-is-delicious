@@ -11,6 +11,8 @@ import { trailFx, drawRibbon } from "./trails.js";
 import { upgradeValue } from "./data.js";
 
 const GROUND = 232;
+// the highest a chick ever jumps on its own (~90 px): no super jumps
+const CHICK_MAX_VY = 520;
 const SWIM_Y = GROUND + 33; // a swimming chick's feet: half under the water line (GROUND + 28)
 const PX = 110; // player's x on screen
 const GRAV = 1500, JUMP_V = 440, HOLD_T = 0.2, MAX_FALL = 620;
@@ -1103,7 +1105,12 @@ export class Game {
         if (c.vy < 0 && c.ht < hold) { g *= C.holdK; c.ht += dt; }
         // a short tap cut the chicken's rise in half when the button came up: the chick copies that too
         else if (c.jump && c.jump.hold !== null && !c.cut && c.jump.hold < C.holdT) { c.cut = true; if (c.vy < -200 * C.jumpPow) c.vy *= 0.5; }
-        c.vy = Math.min(c.vy + g * dt, C.maxFall);   // no gliding for chicks
+        let maxFall = C.maxFall;
+        if (this.chickAuto && this.zones.some((z) => c.x >= z.x0 && c.x <= z.x1)) {
+          // jetpack over a glide section: the wind buoys the chicks, so a low hop becomes a long float
+          if (c.vy > 0) { g = 380; maxFall = 70; c.windy = true; }
+        } else c.windy = false;
+        c.vy = Math.min(c.vy + g * dt, maxFall);   // no gliding for chicks (except on the wind)
         c.y += c.vy * dt;
         // chicks can't glide, but they can swim: a pit drops them in the water instead of taking them
         if (c.y >= SWIM_Y && c.vy > 0) {
@@ -1177,7 +1184,7 @@ export class Game {
     while (grew) { grew = false; for (const o of this.obs) if (!o.dead && o.kind !== "crow" && o.x > first.x && o.x <= end + 10 && o.x + o.w > end) { end = o.x + o.w; h = Math.max(h, o.h); grew = true; } }
     const rise = fromY - bank.y + h + 8;
     const tIn = Math.max(0.05, (first.x - c.x - 6) / v), tOut = Math.max(tIn + 0.02, (end - c.x + 6) / v);
-    return Math.min(950, Math.max(rise / tIn + 0.5 * G * tIn, rise / tOut + 0.5 * G * tOut));
+    return Math.min(CHICK_MAX_VY + 80, Math.max(rise / tIn + 0.5 * G * tIn, rise / tOut + 0.5 * G * tOut));
   }
 
   /** For a chick running on its own: the jump speed needed for what's just ahead, or 0. */
@@ -1188,7 +1195,7 @@ export class Game {
     // to be long enough to come down beyond dOut
     const clear = (dIn, dOut, h) => {
       const tIn = Math.max(0.05, dIn / v), tOut = Math.max(tIn + 0.02, dOut / v), hh = h + 8;
-      return Math.min(900, Math.max(hh / tIn + 0.5 * G * tIn, hh / tOut + 0.5 * G * tOut, (G * (dOut + 10) / v) / 2));
+      return Math.min(CHICK_MAX_VY, Math.max(hh / tIn + 0.5 * G * tIn, hh / tOut + 0.5 * G * tOut, (G * (dOut + 10) / v) / 2));
     };
     // a group of obstacles (brambles in a row count as one long one)
     let first = null;

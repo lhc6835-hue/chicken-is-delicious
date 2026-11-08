@@ -92,7 +92,7 @@ export const CHICK = {
 
 export function drawChick(ctx, c, camX, time, skin = "basic", idx = 0) {
   const A = getArt(skin, idx), D = A.def;
-  const img = c.ground ? A.run[Math.floor(time * 12 + c.ph) % 2] : A.jump;
+  const img = c.ground ? A.run[Math.floor(time * 12 + c.ph) % 2] : c.windy ? (Math.floor(time * 14 + c.ph) % 2 ? A.jump : A.run[0]) : A.jump;
   ctx.save();
   ctx.translate(Math.round(c.x - camX), Math.round(c.y));
   if (c.dangle) ctx.rotate(Math.sin(time * 14) * 0.35); // wriggling in the crow's claws
