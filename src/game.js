@@ -491,7 +491,7 @@ export class Game {
 
     // vertical motion
     if (p.booster > 0) {
-      if (p.holding) { p.vy -= 2600 * dt; p.vy = Math.max(p.vy, -300); }
+      if (p.holding) { p.ground = null; p.vy -= 2600 * dt; p.vy = Math.max(p.vy, -300); }
       else { p.vy += 1000 * dt; p.vy = Math.min(p.vy, 230); }
       if (p.y < 74) { p.y = 74; p.vy = Math.max(p.vy, 0); }
       p.gliding = false;
@@ -536,7 +536,9 @@ export class Game {
       for (const s of this.solids) {
         if (s.kind !== "ground" || s.y >= GROUND - 2 || s.falling) continue;
         if (p.x + 7 > s.x && p.x - 7 < s.x + 6 && p.y > s.y + 16 && p.y - 24 < s.y + s.h) {
+          if (p.booster > 0) { p.y = s.y - 1; p.vy = Math.min(p.vy, -80); break; } // the jetpack carries it over
           if (p.speed > 0 || p.invuln > 0) { p.y = s.y; p.vy = 0; this.land(s, 0); break; }
+          if (p.shield) { this.breakShield(); p.y = s.y; p.vy = 0; this.land(s, 0); break; }
           this.die(false); return;
         }
       }
@@ -562,8 +564,8 @@ export class Game {
 
     // fell into the water
     if (p.y > H + 10) {
-      if (p.shield || p.speed > 0 || p.invuln > 0) {
-        if (p.shield && p.speed <= 0 && p.invuln <= 0) this.breakShield();
+      if (p.shield || p.speed > 0 || p.invuln > 0 || p.booster > 0) {
+        if (p.shield && p.speed <= 0 && p.invuln <= 0 && p.booster <= 0) this.breakShield();
         p.y = H; p.vy = -690; p.ground = null; p.holdT = HOLD_T; p.glideLeft = this.glideMax;
         this.fx.add("splash", p.x, GROUND + 26);
         sfx("spring", { vol: 0.8, rate: 0.8 });
@@ -625,7 +627,7 @@ export class Game {
       if (o.kind === "crow" && p.vy > -60 && p.y <= o.y + 7) { this.stompCrow(o); continue; }
       if (o.carry) continue;
       if (p.speed > 0) { this.smash(o); continue; }
-      if (p.invuln > 0) continue;
+      if (p.invuln > 0 || p.booster > 0) continue; // invincible while blinking or on the jetpack
       if (p.shield) { this.breakShield(); this.smash(o, true); continue; }
       this.die(false, o);
       return;
@@ -809,7 +811,7 @@ export class Game {
       this.warnBeep("booster", p.booster, dt);
       p.booster -= dt;
       jetLoop(true, p.holding ? 1 : 0.15);
-      if (p.booster <= 0) { jetLoop(false); sfx("powerdown", { vol: 0.6 }); p.boostGrace = 1; p.glideLeft = this.glideMax; this.popText("부스터 끝!", "#ffc23d"); }
+      if (p.booster <= 0) { jetLoop(false); sfx("powerdown", { vol: 0.6 }); p.boostGrace = 1; p.invuln = Math.max(p.invuln, 1); p.glideLeft = this.glideMax; this.popText("부스터 끝!", "#ffc23d"); }
     }
     if (p.speed > 0) { this.warnBeep("speed", p.speed, dt); p.speed -= dt; if (p.speed <= 0) { setBgmRate(1, 0.8); sfx("powerdown", { vol: 0.6, rate: 0.85 }); p.invuln = Math.max(p.invuln, 0.8); } }
     if (p.magnet > 0) { p.magnet -= dt; if (p.magnet <= 0) sfx("powerdown", { vol: 0.35, rate: 1.3 }); }
