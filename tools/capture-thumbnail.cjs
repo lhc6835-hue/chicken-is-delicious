@@ -28,7 +28,7 @@ const fs = require('fs'); fs.rmSync(OUT, { recursive: true, force: true }); fs.m
 
   // 1. the title
   await p.evaluate(() => { kkokko.save.missions = []; });
-  await frames(Math.round(FPS * 1.2));
+  await frames(Math.round(FPS * 0.9));
   // 2. start: the shell slams shut and cracks open on the run
   await p.keyboard.press('Space');
   for (let i = 0; i < FPS * 2; i++) {
@@ -87,9 +87,9 @@ const fs = require('fs'); fs.rmSync(OUT, { recursive: true, force: true }); fs.m
   }
   // 3-5. the run
   const until = async (fn, max) => { for (let i = 0; i < max; i++) { await p.clock.runFor(STEP); await shot(); if (await p.evaluate(fn)) return i; } return -1; };
-  await until(() => kkokko.game.p.x - 1150 * 20 > 3560 || !kkokko.game.p.alive, FPS * 16);
+  await until(() => kkokko.game.p.x - 1150 * 20 > 3400 || !kkokko.game.p.alive, FPS * 16);
   await p.evaluate(() => kkokko.trans.run('shell', () => { kkokko.showTitle(); kkokko.game.popText = () => {}; }));
-  await frames(Math.round(FPS * 1.25));
+  await frames(Math.round(FPS * 1.0));
   console.log('frames', n, 'alive', await p.evaluate(() => kkokko.game.p.alive), 'chicks', await p.evaluate(() => kkokko.game.chicks.length), 'lost', await p.evaluate(() => kkokko.game.run.chicksLost), 'rings', await p.evaluate(() => kkokko.game.run.rings));
   console.log(errs.join('\n') || 'no errors');
   await b.close();
