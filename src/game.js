@@ -1219,7 +1219,12 @@ export class Game {
     if (edge - c.x >= 0 && edge - c.x <= ahead && !this.solids.some((q) => q !== g && !q.falling && q.x <= edge + 2 && q.x + q.w > edge + 2 && Math.abs(q.y - g.y) < 40)) {
       let far = null;
       for (const q of this.solids) if (!q.falling && q.x > edge && q.x - edge < 420 && (!far || q.x < far.x)) far = q;
-      if (far) return clear(edge - c.x, far.x - c.x + 10, Math.max(0, g.y - far.y));
+      if (far) {
+        // and whatever stands right on the far side, so it doesn't land on it
+        let end = far.x + 10, h = Math.max(0, g.y - far.y);
+        for (const o of this.obs) if (!o.dead && o.kind !== "crow" && o.x >= far.x - 4 && o.x < far.x + 60) { end = Math.max(end, o.x + o.w + 10); h = Math.max(h, o.h + Math.max(0, g.y - far.y)); }
+        return clear(edge - c.x, end - c.x, h);
+      }
     }
     return 0;
   }

@@ -695,4 +695,4 @@ Promise.all([loadFx(), document.fonts ? Promise.all(["12px Galmuri11", "700 16px
 });
 
 // test hook: index.html?debug exposes the game and save in the console
-if (location.search.includes("debug")) { window.kkokko = { game, save, showShop, showMissions, showGacha, persist }; }
+if (location.search.includes("debug")) { window.kkokko = { game, save, showShop, showMissions, showGacha, showTitle, trans, persist }; }

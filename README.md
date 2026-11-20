@@ -1,5 +1,7 @@
 # FREE RANGE
 
+![FREE RANGE](docs/thumbnail-small.gif)
+
 > *Don't become dinner.*
 
 도망치는 닭의 픽셀아트 러너 게임. `index.html`을 브라우저로 열면 바로 플레이할 수 있어요 (GitHub Pages 그대로 가능).
